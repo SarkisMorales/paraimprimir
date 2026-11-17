@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Precios para góndola</title>
+<link rel="stylesheet" href="css/styles.css">
+<style id="pageStyle"></style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><b>Precios</b> para góndola</div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="imprimir" class="active">Imprimir <span class="pill" id="tabQ">0</span></button>
+      <button data-tab="catalogo">Catálogo <span class="pill" id="tabC">0</span></button>
+      <button data-tab="importar">Importar Excel</button>
+      <button data-tab="plantillas">Plantillas</button>
+      <button data-tab="ajustes">Ajustes y respaldo</button>
+    </nav>
+  </header>
+  <div id="banner"></div>
+
+  <main>
+    <!-- ================= IMPRIMIR ================= -->
+    <section class="tab active" id="tab-imprimir">
+      <div class="grid2">
+        <div>
+          <div class="card">
+            <h2>Carga rápida</h2>
+            <p class="hint">Escribí el <b>nombre o código</b> (o escaneá el código de barras) → <b>Enter</b> → precio → <b>Enter</b>. Listo, ya está en la cola.
+              Si el artículo no existe, se crea solo en el catálogo. También podés <b>pegar una lista</b> (una línea por artículo: <i>Galletitas Oreo 118g 1250</i>).</p>
+            <div class="entry-row">
+              <div class="ac-wrap">
+                <input id="qName" placeholder="Nombre, código o escanear…" autocomplete="off" spellcheck="false">
+                <div id="qAc" class="ac" hidden></div>
+              </div>
+              <input id="qPrice" placeholder="Precio" inputmode="decimal" autocomplete="off">
+              <input id="qOffer" placeholder="Oferta" inputmode="decimal" autocomplete="off" title="Precio de oferta (opcional). Sale el precio normal tachado.">
+              <input id="qQty" type="number" min="1" value="1" title="Cantidad de carteles">
+              <select id="qTpl" title="Plantilla"></select>
+              <button id="qAdd" class="primary">Agregar ↵</button>
+            </div>
+            <div id="qInfo" class="hint" style="margin:8px 0 0"></div>
+          </div>
+
+          <div class="card">
+            <div class="row between" style="margin-bottom:10px">
+              <h2 style="margin:0">Cola de impresión <span class="pill" id="qCount">0</span></h2>
+              <div class="row">
+                <button id="btnPending" title="Agrega todos los artículos con precio nuevo que todavía no imprimiste">+ Pendientes de imprimir (<span id="pendCount">0</span>)</button>
+                <button id="btnClearQ" class="ghost">Vaciar cola</button>
+                <button id="btnSheet" class="primary big">Ver hoja e imprimir</button>
+              </div>
+            </div>
+            <div class="tbl-wrap"><table class="tbl" id="qTable"></table></div>
+          </div>
+        </div>
+
+        <div class="card sticky">
+          <h2>Vista previa</h2>
+          <div id="qPreview" class="preview"></div>
+          <div id="qPrevInfo" class="prev-info"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CATÁLOGO ================= -->
+    <section class="tab" id="tab-catalogo">
+      <div class="card">
+        <div class="toolbar">
+          <input id="cSearch" type="search" placeholder="Buscar: nombre, código, categoría…  (atajo: tecla / )" style="flex:1;min-width:240px;font-size:16px;padding:9px 12px" autocomplete="off">
+          <select id="cCat"></select>
+          <select id="cStatus">
+            <option value="">Todos</option>
+            <option value="pending">Pendientes de imprimir</option>
+            <option value="recent">Cambiados en los últimos 7 días</option>
+            <option value="offer">Con oferta</option>
+            <option value="nocat">Sin categoría</option>
+          </select>
+          <b id="cCount"></b>
+        </div>
+        <div class="toolbar">
+          <button id="cNew">+ Nuevo artículo</button>
+          <button id="cQueue" class="primary">Mandar a la cola</button>
+          <button id="cBulk">Aumento / descuento %</button>
+          <button id="cAssign">Categoría / plantilla</button>
+          <button id="cPrinted" title="Marca que el cartel de la góndola ya tiene este precio">Marcar como impresos</button>
+          <button id="cDel" class="danger">Eliminar</button>
+          <button id="cUndo" hidden>Deshacer último aumento</button>
+          <span class="spacer"></span>
+          <button id="cExport">Exportar a Excel</button>
+        </div>
+        <p class="hint" id="cScope"></p>
+        <div class="tbl-wrap"><table class="tbl" id="cTable"></table></div>
+        <div style="text-align:center;margin-top:10px"><button id="cMore" hidden>Mostrar más</button></div>
+      </div>
+    </section>
+
+    <!-- ================= IMPORTAR ================= -->
+    <section class="tab" id="tab-importar">
+      <div class="card">
+        <h2>1. Elegí el archivo</h2>
+        <p class="hint">Excel (.xlsx / .xls), CSV u OpenOffice. Exportalo desde tu sistema de caja o facturación con, por lo menos, <b>nombre y precio</b>.
+          Si trae el <b>código</b> del artículo, mejor: así se reconoce cada artículo aunque le cambien el nombre.
+          Cada vez que cambien los precios, volvés a importar el archivo y la app te dice <b>qué cambió</b> para imprimir solo eso.</p>
+        <label class="drop" id="iDrop"><input type="file" id="iFile" accept=".xlsx,.xls,.xlsm,.csv,.ods,.txt,.tsv">
+          <b>Arrastrá el archivo acá</b> o hacé clic para elegirlo</label>
+      </div>
+      <div id="iStep2"></div>
+      <div id="iStep3"></div>
+    </section>
+
+    <!-- ================= PLANTILLAS ================= -->
+    <section class="tab" id="tab-plantillas">
+      <div class="grid3">
+        <div class="card">
+          <h2>Plantillas</h2>
+          <div class="tpl-list" id="tList"></div>
+          <div class="row" style="margin-top:10px">
+            <button id="tNew">+ Nueva</button>
+            <button id="tDup">Duplicar</button>
+            <button id="tDel" class="danger">Eliminar</button>
+          </div>
+        </div>
+        <div class="card" id="tForm"></div>
+        <div class="sticky">
+          <div class="card">
+            <h2>Vista previa</h2>
+            <div class="fields" style="grid-template-columns:1fr 100px;margin-bottom:10px">
+              <label class="field">Nombre de ejemplo<input id="tsName" value="Galletitas Chocolinas 170 g"></label>
+              <label class="field">Precio<input id="tsPrice" value="1890" inputmode="decimal"></label>
+            </div>
+            <label class="chk" style="margin-bottom:10px"><input type="checkbox" id="tsOffer"> Ver como oferta (precio anterior tachado)</label>
+            <div id="tPreview" class="preview"></div>
+            <div id="tPrevInfo" class="prev-info"></div>
+          </div>
+          <div class="card">
+            <h2>Plantilla según categoría</h2>
+            <p class="hint">Cada artículo usa la plantilla de su categoría. Así, por ejemplo, todas las galletas salen chicas sin que tengas que elegir nada.</p>
+            <div id="tCats"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= AJUSTES ================= -->
+    <section class="tab" id="tab-ajustes">
+      <div class="card">
+        <h2>Copia de seguridad</h2>
+        <p class="hint">Los datos se guardan en este navegador. Si alguien borra el historial o los datos de navegación, se pierden.
+          <b>Descargá una copia de seguridad una vez por semana</b> y guardala en un pendrive o mandátela por mail o WhatsApp.</p>
+        <div class="row">
+          <button id="aBackup" class="primary">Descargar copia de seguridad</button>
+          <label class="btn">Restaurar una copia… <input type="file" id="aRestore" accept=".json" hidden></label>
+          <button id="aExport">Exportar catálogo a Excel</button>
+        </div>
+        <p class="hint" id="aLast" style="margin-top:10px"></p>
+      </div>
+      <div class="card">
+        <h2>Hoja de impresión</h2>
+        <div class="fields">
+          <label class="field">Tamaño de hoja<select data-s="paper"><option>A4</option><option>Carta</option><option>Oficio</option></select></label>
+          <label class="field">Orientación<select data-s="orient"><option value="portrait">Vertical</option><option value="landscape">Horizontal</option></select></label>
+          <label class="field">Margen de la hoja (mm)<input type="number" step="0.5" min="0" data-s="margin"></label>
+          <label class="field">Separación entre carteles (mm)<input type="number" step="0.5" min="0" data-s="gap"></label>
+        </div>
+        <div class="row" style="margin-top:12px;gap:20px">
+          <label class="chk"><input type="checkbox" data-s="cutLines"> Líneas de corte punteadas</label>
+          <label class="chk"><input type="checkbox" data-s="optimize"> Acomodar para gastar menos papel (junta los del mismo tamaño)</label>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Precios</h2>
+        <div class="fields">
+          <label class="field">Signo de moneda<input data-s="currency" maxlength="4"></label>
+          <label class="field">Centavos<select data-s="decimals">
+            <option value="auto">Solo si tiene centavos</option><option value="never">Nunca (redondear)</option><option value="always">Siempre</option></select></label>
+          <label class="field">Redondeo en aumentos<select data-s="roundTo">
+            <option value="0">Sin redondear</option><option value="1">a $1</option><option value="5">a $5</option><option value="10">a $10</option><option value="50">a $50</option><option value="100">a $100</option></select></label>
+          <label class="field">Forma de redondear<select data-s="roundMode"><option value="up">Hacia arriba</option><option value="near">Al más cercano</option></select></label>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Zona peligrosa</h2>
+        <p class="hint">Borra todos los artículos, plantillas y ajustes de este navegador. Descargá una copia antes.</p>
+        <button id="aWipe" class="danger">Borrar todo</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ================= VISTA DE HOJA ================= -->
+<div id="printView" hidden>
+  <div class="pv-bar">
+    <button id="pvClose">← Volver</button>
+    <b id="pvInfo"></b>
+    <label>Hoja <select id="pvPaper"><option>A4</option><option>Carta</option><option>Oficio</option></select></label>
+    <label><select id="pvOrient"><option value="portrait">Vertical</option><option value="landscape">Horizontal</option></select></label>
+    <label>Margen <input type="number" id="pvMargin" step="0.5" min="0"> mm</label>
+    <label>Separación <input type="number" id="pvGap" step="0.5" min="0"> mm</label>
+    <label><input type="checkbox" id="pvCut"> Líneas de corte</label>
+    <span class="spacer"></span>
+    <button id="pvPrint" class="primary big">Imprimir</button>
+    <button id="pvDone" class="ok">✓ Salió bien: marcar impresos y vaciar cola</button>
+  </div>
+  <div class="pv-tip">En la ventana de impresión elegí <b>Escala: 100% (o “Tamaño real”)</b>, <b>Márgenes: Ninguno</b> y activá <b>“Gráficos de fondo”</b> para que salgan los colores. Así las medidas salen exactas.</div>
+  <div id="sheets"></div>
+</div>
+
+<dialog id="dlg"></dialog>
+<div id="toasts"></div>
+
+<script src="lib/xlsx.full.min.js"></script>
+<script src="js/db.js"></script>
+<script src="js/core.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
