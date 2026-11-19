@@ -1453,6 +1453,7 @@ function renderSettings() {
     const v = st[el.dataset.s];
     if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
   });
+  renderUpdate();
   $('#aLast').innerHTML = st.lastBackup ? `Última copia descargada: <b>${new Date(st.lastBackup).toLocaleString('es-AR')}</b>` : 'Todavía no descargaste ninguna copia.';
 }
 function bindSettings() {
@@ -1567,6 +1568,38 @@ async function init() {
   window.addEventListener('afterprint', () => $('#pvDone').classList.add('flash'));
   window.addEventListener('resize', U.debounce(() => { if (S.tab === 'imprimir') renderQPreview(); if (S.tab === 'plantillas') renderTplPreview(); }, 200));
   showTab('imprimir');
+  checkUpdate();
+  setInterval(checkUpdate, 60 * 60 * 1000);
+}
+
+/* ---------------- Aviso de versión nueva ----------------
+   Compara la versión instalada (js/version.js, lo escribe ACTUALIZAR.bat) con la última publicada. */
+const UPD = { repo: 'SarkisMorales/paraimprimir', branch: 'claude/epic-dirac-dhv0f6', latest: null, hidden: false };
+async function checkUpdate() {
+  if (navigator.onLine === false) return;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${UPD.repo}/commits/${UPD.branch}`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const c = await r.json();
+    UPD.latest = { sha: c.sha, msg: String(c.commit && c.commit.message || '').split('\n')[0], date: c.commit && c.commit.committer && c.commit.committer.date };
+  } catch (e) { return; }
+  renderUpdate();
+}
+function renderUpdate() {
+  const box = $('#updBar');
+  const cur = window.APP_VERSION || '';
+  const newer = UPD.latest && UPD.latest.sha !== cur;
+  box.innerHTML = newer && !UPD.hidden
+    ? `<div class="updbar"><span>🔄 <b>Hay una versión nueva de la app</b>${UPD.latest.msg ? `: ${U.esc(UPD.latest.msg)}` : ''}.
+        En la carpeta de la app hacé doble clic en <b>ACTUALIZAR</b> y después apretá <b>F5</b> acá.</span>
+        <button id="updLater" class="ghost">Ahora no</button></div>`
+    : '';
+  if ($('#updLater')) $('#updLater').onclick = () => { UPD.hidden = true; renderUpdate(); };
+  const info = $('#aVersion');
+  if (info) {
+    info.innerHTML = `Versión instalada: <b>${cur ? cur.slice(0, 7) : 'sin datos (todavía no usaste ACTUALIZAR)'}</b>`
+      + (UPD.latest ? (newer ? ` · Hay una más nueva: <b>${UPD.latest.sha.slice(0, 7)}</b>${UPD.latest.date ? ` del ${new Date(UPD.latest.date).toLocaleDateString('es-AR')}` : ''}` : ' · <span style="color:var(--ok)">Estás al día ✓</span>') : '');
+  }
 }
 
 init();

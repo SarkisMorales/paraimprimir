@@ -158,6 +158,7 @@ td.col-on, th.col-on { background: #eff6ff; }
 
 /* ---------- Avisos ---------- */
 #banner .warnbar { background: var(--warn-soft); color: #78350f; padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; border-bottom: 1px solid #fcd34d; }
+#updBar .updbar { background: var(--brand-soft); color: #1e3a8a; padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; border-bottom: 1px solid #93c5fd; }
 #toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; align-items: center; }
 .toast { background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); display: flex; gap: 12px; align-items: center; max-width: 90vw; }
 .toast button { background: #374151; color: #fff; border-color: #4b5563; }

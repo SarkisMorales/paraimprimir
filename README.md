@@ -8,6 +8,17 @@ App para hacer los carteles de precios de la góndola rápido: cargás nombre y 
 
 > Usá siempre el **mismo navegador** y la **misma carpeta**: los artículos se guardan dentro del navegador.
 
+## Actualizar la app
+
+Cuando haya cambios nuevos, la app te avisa con una franja azul arriba. Para actualizar:
+
+1. En la carpeta de la app, hacé **doble clic en `ACTUALIZAR.bat`** (en Mac: `ACTUALIZAR-mac.command`).
+2. Se abre una ventanita que baja la última versión, te dice qué cambió y reemplaza los archivos.
+3. Volvé a la app y apretá **F5**.
+
+**Tus artículos, plantillas y ajustes no se tocan**: se guardan en el navegador, no en la carpeta.
+La primera vez Windows puede preguntar si querés ejecutarlo: elegí **Más información → Ejecutar de todas formas** (o **Ejecutar**).
+
 ## Uso diario
 
 1. **Importar Excel**: exportá la lista de artículos desde tu sistema de caja (o armá un Excel con nombre y precio) y arrastralo. La app adivina qué es cada columna: nombre, precio, código, rubro y código de barras.
@@ -45,6 +56,7 @@ En **Ajustes y respaldo → Descargar copia de seguridad**. Hacela una vez por s
 ## Archivos
 
 - `index.html`: la app
+- `ACTUALIZAR.bat` / `ACTUALIZAR-mac.command`: bajan la última versión (`tools/actualizar.ps1` hace el trabajo en Windows)
 - `js/core.js`: formato de precios, ajuste automático del texto, acomodo en la hoja
 - `js/app.js`: pantallas (carga rápida, catálogo, importador, plantillas, ajustes)
 - `js/db.js`: base de datos local (IndexedDB)

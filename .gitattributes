@@ -1,0 +1,4 @@
+# Archivos de Windows: se guardan tal cual (con CRLF), sin convertir
+*.bat -text
+*.ps1 -text
+*.command text eol=lf
