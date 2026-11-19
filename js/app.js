@@ -450,6 +450,8 @@ function bindImprimir() {
 /* =====================================================================
    VISTA DE HOJA E IMPRESIÓN
    ===================================================================== */
+const PV = { sel: null, selQ: null, orig: new Map(), raf: 0, timer: 0 };
+
 function openSheets() {
   if (!S.queue.length) return toast('La cola está vacía');
   const st = S.settings;
@@ -460,14 +462,32 @@ function openSheets() {
   $('#pvCut').checked = !!st.cutLines;
   $('#printView').hidden = false;
   document.body.style.overflow = 'hidden';
-  $('#printView').scrollTop = 0;
+  $('#sheets').scrollTop = 0;
+  // Se guarda cómo estaba cada plantilla para poder volver atrás
+  PV.orig = new Map(queueTemplates().map(([t]) => [t.id, { w: t.w, h: t.h }]));
+  if (!queueTemplates().some(([t]) => t.id === PV.sel)) { PV.sel = null; PV.selQ = null; }
   buildSheets();
+  renderSide();
 }
 function closeSheets() {
+  saveTemplatesNow();
   $('#printView').hidden = true;
   $('#sheets').innerHTML = '';
   document.body.style.overflow = '';
   showTab(S.tab);
+}
+/* Plantillas que usa la cola, con la cantidad de carteles de cada una */
+function queueTemplates() {
+  const m = new Map();
+  for (const it of S.queue) {
+    const p = S.byId.get(it.pid);
+    if (!p) continue;
+    const t = tplFor(p, it.tpl);
+    const e = m.get(t.id) || [t, 0];
+    e[1] += +it.qty || 1;
+    m.set(t.id, e);
+  }
+  return [...m.values()];
 }
 function buildSheets() {
   const st = S.settings;
@@ -480,21 +500,131 @@ function buildSheets() {
     const key = p.id + '|' + t.id;
     let html = cache.get(key);
     if (!html) { html = labelHTML(p, t); cache.set(key, html); }
-    for (let i = 0; i < (+it.qty || 1); i++) labels.push({ html, w: t.w, h: t.h });
+    for (let i = 0; i < (+it.qty || 1); i++) labels.push({ html, w: t.w, h: t.h, t: t.id, q: it.id });
   }
   const { pages, PW, PH } = packLabels(labels, st);
+  const m = +st.margin || 0;
+  const usable = (PW - 2 * m) * (PH - 2 * m);
   $('#pageStyle').textContent = `@page { size: ${PW}mm ${PH}mm; margin: 0; }`;
   const cut = st.cutLines ? `outline:0.2mm dashed #9ca3af;outline-offset:${(+st.gap || 0) / 2}mm;` : '';
-  $('#sheets').innerHTML = pages.map((pg, i) => `<div class="pg-num">Hoja ${i + 1} de ${pages.length}</div>`
-    + `<div class="sheet" style="width:${PW}mm;height:calc(${PH}mm - 1px)">`
-    + pg.map(({ l, x, y }) => `<div class="slot" style="left:${x.toFixed(2)}mm;top:${y.toFixed(2)}mm;width:${l.w}mm;height:${l.h}mm;${cut}">${l.html}</div>`).join('')
-    + '</div>').join('');
+  $('#sheets').innerHTML = pages.map((pg, i) => {
+    const used = Math.min(100, Math.round(pg.reduce((a, { l }) => a + l.w * l.h, 0) / usable * 100));
+    return `<div class="pg-num">Hoja ${i + 1} de ${pages.length} · ${used}% aprovechada</div>`
+      + `<div class="sheet" style="width:${PW}mm;height:calc(${PH}mm - 1px)">`
+      + pg.map(({ l, x, y }) => `<div class="slot${l.t === PV.sel ? ' hl' : ''}${l.q === PV.selQ ? ' me' : ''}" data-t="${l.t}" data-q="${l.q}" style="left:${x.toFixed(2)}mm;top:${y.toFixed(2)}mm;width:${l.w}mm;height:${l.h}mm;${cut}">${l.html}</div>`).join('')
+      + '</div>';
+  }).join('');
   fitAll($('#sheets'));
   $('#pvInfo').textContent = `${labels.length} carteles · ${pages.length} ${pages.length === 1 ? 'hoja' : 'hojas'}`;
+  PV.count = labels.length;
 }
+/* Con muchos carteles se espera un poquito a que dejes de tocar; con pocos, es al instante */
+function scheduleBuild() {
+  cancelAnimationFrame(PV.raf);
+  clearTimeout(PV.timer);
+  if ((PV.count || 0) > 300) PV.timer = setTimeout(buildSheets, 350);
+  else PV.raf = requestAnimationFrame(buildSheets);
+}
+
+/* ---------- Panel de tamaños en vivo ---------- */
+const mm = (x) => (Math.round(x * 10) / 10).toLocaleString('es-AR', { maximumFractionDigits: 1 });
+function usableArea() {
+  const [PW, PH] = paperSize(S.settings);
+  const m = +S.settings.margin || 0;
+  return { uw: PW - 2 * m, uh: PH - 2 * m, g: +S.settings.gap || 0 };
+}
+const fitsIn = (len, size, g) => Math.max(0, Math.floor((len + g + 0.01) / (size + g)));
+const sizeFor = (n, len, g) => Math.floor(((len - (n - 1) * g) / n) * 10) / 10;
+
+function fitInfo(t) {
+  const { uw, uh, g } = usableArea();
+  const cols = fitsIn(uw, t.w, g), rows = fitsIn(uh, t.h, g);
+  const restW = uw - (cols * t.w + (cols - 1) * g), restH = uh - (rows * t.h + (rows - 1) * g);
+  const line = (n, word, rest, max) => (n === 0
+    ? `<span class="bad">No entra: el máximo es ${mm(max)} mm</span>`
+    : `<b>${n}</b> ${word}${rest >= 3 ? ` · <span class="warn">sobran ${mm(rest)} mm</span>` : ' · justo'}`);
+  return `Por fila: ${line(cols, cols === 1 ? 'cartel' : 'carteles', restW, uw)}<br>`
+    + `Filas por hoja: ${line(rows, rows === 1 ? 'fila' : 'filas', restH, uh)}<br>`
+    + `<b>${cols * rows} por hoja</b> (si van solos)`;
+}
+function fitChips(t, dim) {
+  const { uw, uh, g } = usableArea();
+  const len = dim === 'w' ? uw : uh;
+  const cur = fitsIn(len, t[dim], g);
+  const out = [];
+  for (let n = Math.max(1, cur - 1); n <= cur + 2; n++) {
+    const s = sizeFor(n, len, g);
+    if (s < 15) break;
+    out.push(`<button data-chip="${dim}" data-v="${s}" class="${Math.abs(s - t[dim]) < 0.15 ? 'cur' : ''}" title="Deja el ${dim === 'w' ? 'ancho' : 'alto'} justo para que entren ${n} sin que sobre espacio">${n} → ${mm(s)}</button>`);
+  }
+  return `<span>${dim === 'w' ? 'Llenar el ancho:' : 'Llenar el alto:'}</span>` + out.join('');
+}
+function sideCard(t, n) {
+  const o = PV.orig.get(t.id);
+  const changed = o && (o.w !== t.w || o.h !== t.h);
+  const step = (k) => `<label class="pv-dim">${k === 'w' ? 'Ancho' : 'Alto'} (mm)<span class="pv-step"><button data-step="${k}" data-d="-1" title="1 mm menos">−</button><input type="number" step="any" min="10" data-dim="${k}" value="${t[k]}"><button data-step="${k}" data-d="1" title="1 mm más">+</button></span></label>`;
+  return `<div class="pv-card${t.id === PV.sel ? ' on' : ''}" data-card="${t.id}">
+    <div class="pv-card-h"><b>${U.esc(t.name)}</b><small>${n} ${n === 1 ? 'cartel' : 'carteles'}</small></div>
+    <div class="pv-dims">${step('w')}${step('h')}</div>
+    <div class="pv-fit">${fitInfo(t)}</div>
+    <div class="pv-chips" data-chips="w">${fitChips(t, 'w')}</div>
+    <div class="pv-chips" data-chips="h">${fitChips(t, 'h')}</div>
+    <div class="row" style="gap:6px">${changed ? `<button data-reset title="Vuelve a ${mm(o.w)} × ${mm(o.h)} mm">↺ Volver a como estaba</button>` : ''}<button data-edit class="ghost" title="Colores, letra, franja y demás">Más opciones…</button></div>
+  </div>`;
+}
+function renderSide() {
+  const list = queueTemplates();
+  let sel = '';
+  const q = S.queue.find((x) => x.id === PV.selQ);
+  const p = q && S.byId.get(q.pid);
+  if (p) {
+    sel = `<div class="pv-sel"><b>${U.esc(p.name)}</b>
+      <label class="pv-dim">Plantilla de este cartel<select data-qtpl>${tplOptions(q.tpl, 'Automática (' + tplFor(p).name + ')')}</select></label>
+      <small>Para que salga más grande o más chico solo este, elegí otra plantilla.</small></div>`;
+  }
+  $('#pvSide').innerHTML = `<div><h3>Tamaño de los carteles</h3><p class="hint">Hacé clic en un cartel de la hoja para elegirlo. Cambiá el ancho o el alto y mirá cómo se reacomoda la hoja. Los botones verdes dejan la medida justa para no desperdiciar papel.</p></div>`
+    + sel + list.map(([t, n]) => sideCard(t, n)).join('')
+    + `<p class="hint">Los cambios se guardan en la plantilla y se usan en todos los carteles con esa plantilla.</p>`;
+}
+/* Actualiza solo los números de una tarjeta, sin tocar el campo donde estás escribiendo */
+function refreshCard(id, keepInput) {
+  const card = $(`#pvSide [data-card="${id}"]`);
+  const t = tplById(id);
+  if (!card || !t) return;
+  for (const inp of card.querySelectorAll('[data-dim]')) if (inp !== keepInput) inp.value = t[inp.dataset.dim];
+  card.querySelector('.pv-fit').innerHTML = fitInfo(t);
+  card.querySelector('[data-chips="w"]').innerHTML = fitChips(t, 'w');
+  card.querySelector('[data-chips="h"]').innerHTML = fitChips(t, 'h');
+  const o = PV.orig.get(id);
+  const row = card.querySelector('.row');
+  const changed = o && (o.w !== t.w || o.h !== t.h);
+  if (!!row.querySelector('[data-reset]') !== changed) {
+    row.innerHTML = (changed ? `<button data-reset title="Vuelve a ${mm(o.w)} × ${mm(o.h)} mm">↺ Volver a como estaba</button>` : '') + '<button data-edit class="ghost" title="Colores, letra, franja y demás">Más opciones…</button>';
+  }
+}
+function setTplSize(id, k, v, keepInput) {
+  const t = tplById(id);
+  if (!t || !isFinite(v)) return;
+  v = Math.round(Math.max(10, Math.min(1000, v)) * 10) / 10;
+  if (t[k] === v) return;
+  t[k] = v;
+  t.v = (t.v || 0) + 1;
+  saveTemplates();
+  selectTpl(id, false);
+  refreshCard(id, keepInput);
+  scheduleBuild();
+}
+function selectTpl(id, scroll = true) {
+  if (PV.sel === id) return;
+  PV.sel = id;
+  $$('#pvSide .pv-card').forEach((c) => c.classList.toggle('on', c.dataset.card === id));
+  $$('#sheets .slot').forEach((s) => s.classList.toggle('hl', s.dataset.t === id));
+  if (scroll) { const c = $(`#pvSide [data-card="${id}"]`); if (c) c.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+}
+
 function bindPrintView() {
   const st = () => S.settings;
-  const upd = (k, v) => { st()[k] = v; saveSettings(); buildSheets(); };
+  const upd = (k, v) => { st()[k] = v; saveSettings(); buildSheets(); renderSide(); };
   $('#pvPaper').onchange = (e) => upd('paper', e.target.value);
   $('#pvOrient').onchange = (e) => upd('orient', e.target.value);
   $('#pvMargin').onchange = (e) => upd('margin', Math.max(0, parseFloat(e.target.value) || 0));
@@ -502,6 +632,7 @@ function bindPrintView() {
   $('#pvCut').onchange = (e) => upd('cutLines', e.target.checked);
   $('#pvClose').onclick = closeSheets;
   $('#pvPrint').onclick = () => {
+    saveTemplatesNow();
     window.print();
     $('#pvDone').classList.remove('flash');
     void $('#pvDone').offsetWidth;
@@ -515,6 +646,73 @@ function bindPrintView() {
     closeSheets();
     toast(`${list.length} artículos marcados como impresos. Cola vacía.`);
   };
+
+  // Clic en un cartel de la hoja: lo elige
+  $('#sheets').addEventListener('click', (e) => {
+    const slot = e.target.closest('.slot');
+    if (!slot) return;
+    const same = PV.selQ === slot.dataset.q;
+    PV.selQ = same ? null : slot.dataset.q;
+    $$('#sheets .slot.me').forEach((s) => s.classList.remove('me'));
+    if (!same) $$(`#sheets .slot[data-q="${slot.dataset.q}"]`).forEach((s) => s.classList.add('me'));
+    PV.sel = null;
+    selectTpl(slot.dataset.t, false);
+    renderSide();
+    const c = $(`#pvSide [data-card="${slot.dataset.t}"]`);
+    if (c) c.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+
+  const side = $('#pvSide');
+  side.addEventListener('input', (e) => {
+    const inp = e.target.closest('[data-dim]');
+    if (!inp) return;
+    const v = parseFloat(String(inp.value).replace(',', '.'));
+    clearTimeout(PV.typing);
+    if (!(v >= 10)) return; // mientras escribís "6" para llegar a "64" no hace nada
+    // Espera un instante a que termines de escribir el número (así "100" no pasa por "10")
+    PV.typing = setTimeout(() => setTplSize(inp.closest('[data-card]').dataset.card, inp.dataset.dim, v, inp), 250);
+  });
+  side.addEventListener('change', (e) => {
+    const inp = e.target.closest('[data-dim]');
+    if (inp) {
+      clearTimeout(PV.typing);
+      const id = inp.closest('[data-card]').dataset.card;
+      const v = parseFloat(String(inp.value).replace(',', '.'));
+      if (!(v >= 10)) inp.value = tplById(id)[inp.dataset.dim];
+      else setTplSize(id, inp.dataset.dim, v);
+      return;
+    }
+    if (e.target.matches('[data-qtpl]')) {
+      const q = S.queue.find((x) => x.id === PV.selQ);
+      if (!q) return;
+      q.tpl = e.target.value;
+      saveQueue();
+      const p = S.byId.get(q.pid);
+      const t = tplFor(p, q.tpl);
+      if (!PV.orig.has(t.id)) PV.orig.set(t.id, { w: t.w, h: t.h });
+      PV.sel = t.id;
+      buildSheets();
+      renderSide();
+    }
+  });
+  side.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-card]');
+    if (!card) return;
+    const id = card.dataset.card;
+    const t = tplById(id);
+    const b = e.target.closest('button');
+    if (!b) { if (!e.target.closest('input,select,label')) selectTpl(id, false); return; }
+    if (b.dataset.step) setTplSize(id, b.dataset.step, t[b.dataset.step] + +b.dataset.d);
+    else if (b.dataset.chip) setTplSize(id, b.dataset.chip, +b.dataset.v);
+    else if (b.hasAttribute('data-reset')) {
+      const o = PV.orig.get(id);
+      if (o) { setTplSize(id, 'w', o.w); setTplSize(id, 'h', o.h); }
+    } else if (b.hasAttribute('data-edit')) {
+      curTplId = id;
+      S.tab = 'plantillas';
+      closeSheets();
+    }
+  });
 }
 
 /* =====================================================================

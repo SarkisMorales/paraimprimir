@@ -14,6 +14,7 @@ App para hacer los carteles de precios de la góndola rápido: cargás nombre y 
 2. **Cuando cambian los precios**: importás el archivo nuevo y la app te muestra **qué precios cambiaron**. Con un botón los mandás a la cola.
 3. **Imprimir**: *Ver hoja e imprimir*. Acomoda todos los carteles en la hoja (A4, Carta u Oficio), aunque sean de tamaños distintos, con líneas de corte.
    En la ventana de impresión elegí **Escala 100%**, **Márgenes: ninguno** y activá **Gráficos de fondo**.
+   **Ajustar tamaños en vivo**: en la hoja, hacé clic en un cartel. A la derecha aparece su plantilla con el ancho y el alto: cambialos (o usá − / +) y la hoja se reacomoda al instante. Los botones verdes, por ejemplo "3 → 64,6", dejan la medida justa para que entren 3 por fila sin que sobre papel. Arriba de cada hoja dice qué porcentaje está aprovechado. Con "Volver a como estaba" deshacés los cambios.
 4. Cuando la hoja salió bien: **"Salió bien: marcar impresos"**. Así la app sabe qué carteles de la góndola ya están al día.
 
 ## Carga rápida (pestaña Imprimir)

@@ -169,7 +169,9 @@ dialog::backdrop { background: rgba(17, 24, 39, .55); }
 .dlg-body h2 { font-size: 18px; }
 
 /* ---------- Vista de hoja ---------- */
-#printView { position: fixed; inset: 0; background: #4b5563; overflow: auto; z-index: 50; }
+#printView { position: fixed; inset: 0; background: #4b5563; z-index: 50; display: flex; flex-direction: column; }
+.pv-body { flex: 1; min-height: 0; display: flex; }
+.pv-body #sheets { flex: 1; overflow: auto; align-items: safe center; }
 .pv-bar {
   position: sticky; top: 0; z-index: 2; background: #111827; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
 }
@@ -182,6 +184,37 @@ dialog::backdrop { background: rgba(17, 24, 39, .55); }
 .sheet .slot { position: absolute; }
 .sheet .slot > .lbl { position: absolute; left: 0; top: 0; }
 .pg-num { color: #e5e7eb; font-size: 12px; margin-bottom: -18px; }
+#sheets .slot { cursor: pointer; }
+#sheets .slot:hover::after { content: ''; position: absolute; inset: 0; box-shadow: 0 0 0 0.5mm rgba(37, 99, 235, .45); pointer-events: none; z-index: 1; }
+#sheets .slot.hl::after { content: ''; position: absolute; inset: 0; box-shadow: 0 0 0 0.6mm #2563eb; pointer-events: none; z-index: 1; }
+#sheets .slot.hl.me::after { box-shadow: 0 0 0 1mm #f59e0b; }
+
+/* Panel de tamaños en vivo */
+.pv-side { width: 330px; flex: none; overflow: auto; background: #f9fafb; border-left: 1px solid #111827; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.pv-side h3 { margin: 0 0 4px; font-size: 15px; color: var(--ink); }
+.pv-side .hint { margin: 0; }
+.pv-sel { background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--radius); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.pv-sel select { width: 100%; }
+.pv-card { background: #fff; border: 2px solid var(--line); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+.pv-card.on { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); cursor: default; }
+.pv-card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pv-dims { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pv-dim { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.pv-step { display: flex; align-items: stretch; }
+.pv-step button { padding: 4px 9px; font-size: 16px; line-height: 1; border-radius: 0; }
+.pv-step button:first-child { border-radius: 8px 0 0 8px; }
+.pv-step button:last-child { border-radius: 0 8px 8px 0; }
+.pv-step input { width: 100%; min-width: 0; text-align: center; border-radius: 0; border-left: 0; border-right: 0; font-size: 15px; font-weight: 600; padding: 5px 2px; }
+.pv-fit { font-size: 13px; line-height: 1.5; }
+.pv-fit .bad { color: var(--bad); font-weight: 600; }
+.pv-fit .warn { color: var(--warn); }
+.pv-chips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 12px; color: var(--muted); }
+.pv-chips button { padding: 3px 8px; font-size: 12px; border-radius: 999px; }
+.pv-chips button.cur { background: var(--ok-soft); border-color: var(--ok); color: #065f46; }
+@media (max-width: 900px) {
+  .pv-body { flex-direction: column-reverse; }
+  .pv-side { width: auto; max-height: 45vh; border-left: 0; border-bottom: 1px solid #111827; }
+}
 
 /* ---------- Etiqueta (lo que se imprime) ---------- */
 .lbl { contain: strict; display: flex; flex-direction: column; overflow: hidden; color: #111; line-height: 1; }
@@ -209,7 +242,11 @@ dialog::backdrop { background: rgba(17, 24, 39, .55); }
 @media print {
   html, body { background: #fff; overflow: visible !important; height: auto !important; }
   #app, .pv-bar, .pv-tip, #toasts, dialog, .pg-num { display: none !important; }
-  #printView { position: static; overflow: visible; background: none; }
+  #printView { position: static; overflow: visible; background: none; display: block; }
+  .pv-body { display: block; }
+  .pv-body #sheets { overflow: visible; }
+  .pv-side { display: none !important; }
+  #sheets .slot::after { display: none !important; }
   #sheets { padding: 0; gap: 0; display: block; }
   .sheet { box-shadow: none; margin: 0; break-after: page; page-break-after: always; }
   .sheet:last-child { break-after: auto; page-break-after: auto; }
