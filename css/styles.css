@@ -189,6 +189,8 @@ dialog::backdrop { background: rgba(17, 24, 39, .55); }
 #sheets .slot:hover::after { content: ''; position: absolute; inset: 0; box-shadow: 0 0 0 0.5mm rgba(37, 99, 235, .45); pointer-events: none; z-index: 1; }
 #sheets .slot.hl::after { content: ''; position: absolute; inset: 0; box-shadow: 0 0 0 0.6mm #2563eb; pointer-events: none; z-index: 1; }
 #sheets .slot.hl.me::after { box-shadow: 0 0 0 1mm #f59e0b; }
+#sheets .slot-x { position: absolute; top: 4px; right: 4px; z-index: 3; background: var(--bad); color: #fff; border: 0; border-radius: 999px; padding: 4px 10px; font: 600 12px system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: pointer; }
+#sheets .slot-x:hover { background: #b91c1c; }
 
 /* Panel de tamaños en vivo */
 .pv-side { width: 330px; flex: none; overflow: auto; background: #f9fafb; border-left: 1px solid #111827; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
@@ -247,7 +249,7 @@ dialog::backdrop { background: rgba(17, 24, 39, .55); }
   .pv-body { display: block; }
   .pv-body #sheets { overflow: visible; }
   .pv-side { display: none !important; }
-  #sheets .slot::after { display: none !important; }
+  #sheets .slot::after, #sheets .slot-x { display: none !important; }
   #sheets { padding: 0; gap: 0; display: block; }
   .sheet { box-shadow: none; margin: 0; break-after: page; page-break-after: always; }
   .sheet:last-child { break-after: auto; page-break-after: auto; }

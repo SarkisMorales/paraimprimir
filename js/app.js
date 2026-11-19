@@ -511,7 +511,8 @@ function buildSheets() {
     const used = Math.min(100, Math.round(pg.reduce((a, { l }) => a + l.w * l.h, 0) / usable * 100));
     return `<div class="pg-num">Hoja ${i + 1} de ${pages.length} · ${used}% aprovechada</div>`
       + `<div class="sheet" style="width:${PW}mm;height:calc(${PH}mm - 1px)">`
-      + pg.map(({ l, x, y }) => `<div class="slot${l.t === PV.sel ? ' hl' : ''}${l.q === PV.selQ ? ' me' : ''}" data-t="${l.t}" data-q="${l.q}" style="left:${x.toFixed(2)}mm;top:${y.toFixed(2)}mm;width:${l.w}mm;height:${l.h}mm;${cut}">${l.html}</div>`).join('')
+      + pg.map(({ l, x, y }) => `<div class="slot${l.t === PV.sel ? ' hl' : ''}${l.q === PV.selQ ? ' me' : ''}" data-t="${l.t}" data-q="${l.q}" style="left:${x.toFixed(2)}mm;top:${y.toFixed(2)}mm;width:${l.w}mm;height:${l.h}mm;${cut}">${l.html}`
+        + (l.q === PV.selQ ? '<button class="slot-x" data-x title="Sacar este cartel de la hoja (tecla Supr)">✕ Quitar</button>' : '') + '</div>').join('')
       + '</div>';
   }).join('');
   fitAll($('#sheets'));
@@ -579,10 +580,14 @@ function renderSide() {
   const p = q && S.byId.get(q.pid);
   if (p) {
     sel = `<div class="pv-sel"><b>${U.esc(p.name)}</b>
+      <div class="row" style="gap:8px;align-items:center"><span class="pv-dim" style="flex-direction:row;align-items:center;gap:6px">Cantidad
+        <span class="pv-step" style="width:120px"><button data-qqty="-1" title="Uno menos">−</button><input type="number" min="0" step="1" data-qqtyv value="${+q.qty || 1}"><button data-qqty="1" title="Uno más">+</button></span></span></div>
+      <div class="row" style="gap:6px"><button data-qdel class="danger" title="Saca este artículo de la hoja (sigue en el catálogo)">🗑 Sacar de la hoja${(+q.qty || 1) > 1 ? ` (los ${+q.qty})` : ''}</button>
+        <button data-pdel class="ghost" title="Lo borra del catálogo para siempre">Borrar del catálogo…</button></div>
       <label class="pv-dim">Plantilla de este cartel<select data-qtpl>${tplOptions(q.tpl, 'Automática (' + tplFor(p).name + ')')}</select></label>
       <small>Para que salga más grande o más chico solo este, elegí otra plantilla.</small></div>`;
   }
-  $('#pvSide').innerHTML = `<div><h3>Tamaño de los carteles</h3><p class="hint">Hacé clic en un cartel de la hoja para elegirlo. Cambiá el ancho o el alto y mirá cómo se reacomoda la hoja. Los botones verdes dejan la medida justa para no desperdiciar papel.</p></div>`
+  $('#pvSide').innerHTML = `<div><h3>Tamaño de los carteles</h3><p class="hint">Hacé clic en un cartel de la hoja para elegirlo. Para sacarlo, tocá <b>✕ Quitar</b> o la tecla <b>Supr</b>. Cambiá el ancho o el alto y mirá cómo se reacomoda la hoja. Los botones verdes dejan la medida justa para no desperdiciar papel.</p></div>`
     + sel + list.map(([t, n]) => sideCard(t, n)).join('')
     + `<p class="hint">Los cambios se guardan en la plantilla y se usan en todos los carteles con esa plantilla.</p>`;
 }
@@ -622,6 +627,52 @@ function selectTpl(id, scroll = true) {
   if (scroll) { const c = $(`#pvSide [data-card="${id}"]`); if (c) c.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
 }
 
+/* ---------- Sacar carteles de la hoja ---------- */
+function afterQueueChange() {
+  saveQueue();
+  updateCounts();
+  if (!S.queue.length) { closeSheets(); return; }
+  if (!S.queue.some((x) => x.id === PV.selQ)) PV.selQ = null;
+  buildSheets();
+  renderSide();
+}
+function setQueueQty(qid, qty) {
+  const i = S.queue.findIndex((x) => x.id === qid);
+  if (i < 0) return;
+  const q = S.queue[i];
+  const before = { item: Object.assign({}, q), i };
+  const p = S.byId.get(q.pid);
+  const name = p ? U.esc(p.name) : 'Cartel';
+  qty = Math.max(0, Math.round(qty));
+  if (qty === (+q.qty || 1)) return;
+  if (qty === 0) S.queue.splice(i, 1); else q.qty = qty;
+  afterQueueChange();
+  if (qty < (+before.item.qty || 1)) {
+    toast(qty === 0 ? `“${name}” salió de la hoja` : `“${name}”: quedan ${qty}`, {
+      ms: 6000,
+      action: { label: 'Deshacer', fn: () => {
+        const j = S.queue.findIndex((x) => x.id === qid);
+        if (j >= 0) S.queue[j] = before.item; else S.queue.splice(Math.min(before.i, S.queue.length), 0, before.item);
+        if ($('#printView').hidden) { saveQueue(); updateCounts(); renderQueue(); return; }
+        PV.selQ = qid;
+        afterQueueChange();
+      } },
+    });
+  }
+}
+async function deleteProductFromSheet(qid) {
+  const q = S.queue.find((x) => x.id === qid);
+  const p = q && S.byId.get(q.pid);
+  if (!p) return;
+  if (!(await confirmDlg(`¿Borrar <b>“${U.esc(p.name)}”</b> del catálogo? Sale de la hoja y de la lista de artículos. No se puede deshacer.`, 'Borrar', true))) return;
+  await DB.deleteProducts([p.id]);
+  S.products = S.products.filter((x) => x !== p);
+  S.byId.delete(p.id);
+  S.queue = S.queue.filter((x) => x.pid !== p.id);
+  toast(`“${U.esc(p.name)}” borrado del catálogo`);
+  afterQueueChange();
+}
+
 function bindPrintView() {
   const st = () => S.settings;
   const upd = (k, v) => { st()[k] = v; saveSettings(); buildSheets(); renderSide(); };
@@ -651,15 +702,17 @@ function bindPrintView() {
   $('#sheets').addEventListener('click', (e) => {
     const slot = e.target.closest('.slot');
     if (!slot) return;
+    if (e.target.closest('[data-x]')) {
+      const q = S.queue.find((x) => x.id === slot.dataset.q);
+      if (q) setQueueQty(q.id, (+q.qty || 1) - 1);
+      return;
+    }
     const same = PV.selQ === slot.dataset.q;
     PV.selQ = same ? null : slot.dataset.q;
-    $$('#sheets .slot.me').forEach((s) => s.classList.remove('me'));
-    if (!same) $$(`#sheets .slot[data-q="${slot.dataset.q}"]`).forEach((s) => s.classList.add('me'));
-    PV.sel = null;
-    selectTpl(slot.dataset.t, false);
+    PV.sel = slot.dataset.t;
+    buildSheets();
     renderSide();
-    const c = $(`#pvSide [data-card="${slot.dataset.t}"]`);
-    if (c) c.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    $('#pvSide').scrollTop = 0;
   });
 
   const side = $('#pvSide');
@@ -682,6 +735,11 @@ function bindPrintView() {
       else setTplSize(id, inp.dataset.dim, v);
       return;
     }
+    if (e.target.matches('[data-qqtyv]')) {
+      const v = parseInt(e.target.value, 10);
+      if (PV.selQ && v >= 0) setQueueQty(PV.selQ, v);
+      return;
+    }
     if (e.target.matches('[data-qtpl]')) {
       const q = S.queue.find((x) => x.id === PV.selQ);
       if (!q) return;
@@ -696,6 +754,13 @@ function bindPrintView() {
     }
   });
   side.addEventListener('click', (e) => {
+    const b0 = e.target.closest('button');
+    if (b0 && PV.selQ) {
+      const q = S.queue.find((x) => x.id === PV.selQ);
+      if (b0.dataset.qqty && q) return setQueueQty(q.id, (+q.qty || 1) + +b0.dataset.qqty);
+      if (b0.hasAttribute('data-qdel') && q) return setQueueQty(q.id, 0);
+      if (b0.hasAttribute('data-pdel')) return deleteProductFromSheet(PV.selQ);
+    }
     const card = e.target.closest('[data-card]');
     if (!card) return;
     const id = card.dataset.card;
@@ -1564,6 +1629,12 @@ async function init() {
       if (S.tab === 'catalogo') $('#cSearch').focus(); else { showTab('imprimir'); $('#qName').focus(); }
     }
     if (e.key === 'Escape' && !$('#printView').hidden && !$('#dlg').open) closeSheets();
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !$('#printView').hidden && !$('#dlg').open && PV.selQ
+      && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+      e.preventDefault();
+      const q = S.queue.find((x) => x.id === PV.selQ);
+      if (q) setQueueQty(q.id, (+q.qty || 1) - 1);
+    }
   });
   window.addEventListener('afterprint', () => $('#pvDone').classList.add('flash'));
   window.addEventListener('resize', U.debounce(() => { if (S.tab === 'imprimir') renderQPreview(); if (S.tab === 'plantillas') renderTplPreview(); }, 200));
