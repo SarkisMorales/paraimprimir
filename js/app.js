@@ -183,7 +183,7 @@ function showTab(name) {
   S.tab = name;
   $$('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
-  ({ imprimir: renderImprimir, catalogo: renderCatalog, importar: () => {}, plantillas: renderTemplatesTab, ajustes: renderSettings })[name]();
+  ({ imprimir: renderImprimir, catalogo: renderCatalog, importar: renderLastImport, plantillas: renderTemplatesTab, ajustes: renderSettings })[name]();
 }
 
 /* =====================================================================
@@ -1241,6 +1241,7 @@ function renderImportStep2() {
         return `<td>${U.esc(cellStr(v))}</td>`;
       }).join('')}</tr>`).join('')}</tbody></table></div>
     <div style="margin-top:14px"><button id="iAnalyze" class="primary big"${IMP.map.name == null || IMP.map.price == null ? ' disabled' : ''}>3. Ver qué cambia →</button>
+      <button id="iCancel" class="danger">✕ Cancelar y descartar este archivo</button>
       ${IMP.map.name == null || IMP.map.price == null ? '<span class="hint"> Elegí al menos las columnas de nombre y precio.</span>' : ''}</div></div>`;
   const s2 = $('#iStep2');
   s2.onchange = (e) => {
@@ -1262,6 +1263,51 @@ function renderImportStep2() {
     renderImportStep2();
   };
   $('#iAnalyze').onclick = analyzeImport;
+  $('#iCancel').onclick = cancelImport;
+}
+function resetImport() {
+  Object.assign(IMP, { file: '', sheets: {}, names: [], sheet: '', headerRow: -1, map: {}, analysis: null });
+  $('#iStep2').innerHTML = '';
+  $('#iStep3').innerHTML = '';
+  $('#iFile').value = '';
+}
+function cancelImport() {
+  resetImport();
+  toast('Archivo descartado. No se importó nada.');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+const plainProduct = (p) => { const o = {}; for (const k in p) if (k[0] !== '_') o[k] = p[k]; return o; };
+function renderLastImport() {
+  const L = S.lastImport;
+  const box = $('#iLast');
+  if (!L) { box.innerHTML = ''; return; }
+  const d = new Date(L.date);
+  box.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center">
+    <div><b>Última importación:</b> ${U.esc(L.file)} · ${d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+      <span class="hint"> · ${L.created.length} artículos nuevos, ${L.before.length} modificados</span></div>
+    <button id="iUndo" class="danger">↩ Deshacer esa importación</button></div></div>`;
+  $('#iUndo').onclick = undoImport;
+}
+async function undoImport() {
+  const L = S.lastImport;
+  if (!L) return;
+  if (!(await confirmDlg(`¿Deshacer la importación de <b>${U.esc(L.file)}</b>?<br>Se borran los <b>${L.created.length}</b> artículos que agregó y los <b>${L.before.length}</b> que modificó vuelven a como estaban.`, 'Deshacer', true))) return;
+  const ids = L.created.filter((id) => S.byId.has(id));
+  const idSet = new Set(ids);
+  if (ids.length) await DB.deleteProducts(ids);
+  S.products = S.products.filter((p) => !idSet.has(p.id));
+  ids.forEach((id) => { S.byId.delete(id); if (typeof C !== 'undefined' && C.sel) C.sel.delete(id); });
+  S.queue = S.queue.filter((q) => !idSet.has(q.pid));
+  const restored = [];
+  for (const o of L.before) { const p = S.byId.get(o.id); if (p) { Object.assign(p, o); restored.push(p); } }
+  if (restored.length) await saveProducts(restored);
+  S.lastImport = null;
+  await DB.kvSet('lastImport', null);
+  saveQueue();
+  updateCounts();
+  resetImport();
+  renderLastImport();
+  toast(`Importación deshecha: ${ids.length} artículos borrados, ${restored.length} restaurados`);
 }
 function analyzeImport() {
   const rows = IMP.sheets[IMP.sheet];
@@ -1309,7 +1355,8 @@ function analyzeImport() {
       ${A.changed.slice(0, 300).map(({ p, row }) => { const d = (row.price / p.price - 1) * 100; return `<tr><td>${U.esc(p.name)}</td><td>${U.esc(U.fmt(p.price, st))}</td><td><b>${U.esc(U.fmt(row.price, st))}</b></td><td><span class="badge ${d > 0 ? 'b-up' : 'b-down'}">${d > 0 ? '+' : ''}${d.toFixed(1)}%</span></td></tr>`; }).join('')}
       ${A.changed.length > 300 ? `<tr><td colspan="4" class="hint">… y ${A.changed.length - 300} más</td></tr>` : ''}</tbody></table></div>` : ''}
     ${A.news.length && IMP.addNew ? `<h3>Artículos nuevos</h3><div class="scroll" style="max-height:200px"><table class="tbl"><tbody>${A.news.slice(0, 100).map((r) => `<tr><td class="mono">${U.esc(r.code)}</td><td>${U.esc(r.name)}</td><td>${U.esc(r.category)}</td><td><b>${U.esc(U.fmt(r.price, st))}</b></td></tr>`).join('')}${A.news.length > 100 ? `<tr><td colspan="4" class="hint">… y ${A.news.length - 100} más</td></tr>` : ''}</tbody></table></div>` : ''}
-    <div style="margin-top:14px"><button id="iApply" class="primary big">Confirmar e importar</button> <button onclick="document.getElementById('iStep3').innerHTML=''">Cancelar</button></div></div>`;
+    <div style="margin-top:14px"><button id="iApply" class="primary big">Confirmar e importar</button> <button onclick="document.getElementById('iStep3').innerHTML=''">← Volver a las columnas</button> <button id="iCancel3" class="danger">✕ Cancelar y descartar este archivo</button></div></div>`;
+  $('#iCancel3').onclick = cancelImport;
   $('#iApply').onclick = applyImport;
   $('#iStep3').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1327,6 +1374,8 @@ async function applyImport() {
     if (m.offer != null && (p.offer ?? null) !== row.offer) { p.offer = row.offer; ch = true; }
     return ch;
   };
+  const snap = new Map();
+  for (const { p } of A.changed.concat(A.same)) snap.set(p.id, plainProduct(p));
   const changedProducts = [];
   for (const { p, row } of A.changed) { setPrice(p, row.price); upd(p, row); touched.push(p); changedProducts.push(p); }
   for (const { p, row } of A.same) if (upd(p, row)) touched.push(p);
@@ -1340,6 +1389,9 @@ async function applyImport() {
     }
   }
   await saveProducts(touched);
+  S.lastImport = { date: Date.now(), file: IMP.file, created: created.map((p) => p.id), before: touched.filter((p) => snap.has(p.id)).map((p) => snap.get(p.id)) };
+  await DB.kvSet('lastImport', S.lastImport);
+  renderLastImport();
   const rows = IMP.sheets[IMP.sheet];
   if (IMP.headerRow >= 0) {
     const im = {};
@@ -1355,7 +1407,9 @@ async function applyImport() {
       ${toPrint.length ? `<button id="iToQ" class="primary big">Mandar a la cola los ${toPrint.length} que hay que imprimir</button>` : ''}
       <button id="iToCat">Ver el catálogo</button>
       <button id="iBk">Descargar copia de seguridad</button>
+      <button id="iUndo2" class="danger">↩ Me equivoqué: deshacer esta importación</button>
     </div></div>`;
+  $('#iUndo2').onclick = undoImport;
   if (toPrint.length) $('#iToQ').onclick = () => { addToQueue(toPrint.map((p) => ({ pid: p.id, qty: 1 })), false); showTab('imprimir'); };
   $('#iToCat').onclick = () => showTab('catalogo');
   $('#iBk').onclick = downloadBackup;
@@ -1546,6 +1600,7 @@ function bindSettings() {
       await DB.kvSet('templates', data.templates && data.templates.length ? data.templates : defaultTemplates());
       await DB.kvSet('settings', Object.assign({}, DEFAULT_SETTINGS, data.settings || {}, { lastBackup: Date.now() }));
       await DB.kvSet('catMap', data.catMap || {});
+      await DB.kvSet('lastImport', null);
       await DB.kvSet('queue', data.queue || []);
       await DB.kvSet('lastBulk', null);
       await loadState();
@@ -1601,6 +1656,7 @@ async function loadState() {
   S.catMap = (await DB.kvGet('catMap')) || {};
   S.queue = (await DB.kvGet('queue')) || [];
   S.lastBulk = (await DB.kvGet('lastBulk')) || null;
+  S.lastImport = (await DB.kvGet('lastImport')) || null;
   S.products = (await DB.getAllProducts()) || [];
   S.products.forEach(indexProduct);
   S.byId = new Map(S.products.map((p) => [p.id, p]));
