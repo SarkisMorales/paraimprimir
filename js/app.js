@@ -51,6 +51,21 @@ function setPrice(p, price) {
   p.updatedAt = Date.now();
   return true;
 }
+/* ---------------- Control de errores de tipeo en precios ---------------- */
+// Si el precio nuevo es el doble o más, o la mitad o menos, suele ser un cero de más o de menos.
+const bigJump = (oldP, newP) => oldP > 0 && newP > 0 && (newP >= oldP * 2 || newP <= oldP / 2);
+const pctTxt = (oldP, newP) => { const d = Math.round((newP / oldP - 1) * 100); return (d > 0 ? '+' : '') + d + '%'; };
+function confirmJump(p, newP) {
+  if (!bigJump(p.price, newP)) return Promise.resolve(true);
+  return confirmDlg(`<b>${U.esc(p.name)}</b> pasa de <b>${U.esc(U.fmt(p.price, S.settings))}</b> a <b>${U.esc(U.fmt(newP, S.settings))}</b> (${pctTxt(p.price, newP)}).<br><br>¿Está bien? A veces es un cero de más o de menos.`, 'Sí, está bien');
+}
+// La oferta tiene que ser más barata que el precio normal
+const badOffer = (offer, price) => offer > 0 && price > 0 && offer >= price;
+const offerMsg = (offer, price) => `La oferta (${U.esc(U.fmt(offer, S.settings))}) tiene que ser más barata que el precio (${U.esc(U.fmt(price, S.settings))}).`;
+function warnOffer(p) {
+  if (badOffer(p.offer, p.price)) toast(`Ojo: “${U.esc(p.name)}” tiene una oferta de ${U.esc(U.fmt(p.offer, S.settings))}, igual o más cara que el precio nuevo. Revisala.`, { ms: 7000 });
+}
+
 const isPending = (p) => p.printedPrice !== p.price || (p.offer ?? null) !== (p.printedOffer ?? null);
 function markPrinted(list) {
   for (const p of list) { p.printedPrice = p.price; p.printedOffer = p.offer ?? null; }
@@ -238,12 +253,29 @@ function pickProduct(p) {
   $('#qPrice').value = U.num(p.price);
   $('#qOffer').value = U.num(p.offer);
   $('#qAc').hidden = true;
-  const t = tplFor(p);
-  $('#qInfo').innerHTML = `Del catálogo${p.code ? ' · código <b>' + U.esc(p.code) + '</b>' : ''}${p.category ? ' · ' + U.esc(p.category) : ''} · plantilla <b>${U.esc(t.name)}</b> · precio actual <b>${U.esc(U.fmt(p.price, S.settings))}</b>`;
+  renderPriceHint();
   Q.previewId = p.id;
   renderQPreview();
   $('#qPrice').focus();
   $('#qPrice').select();
+}
+/* Debajo de la carga rápida: datos del artículo elegido y, mientras escribís, cuánto cambia el precio */
+function renderPriceHint() {
+  const p = Q.sel;
+  if (!p) return;
+  const st = S.settings;
+  const t = tplFor(p);
+  let h = `Del catálogo${p.code ? ' · código <b>' + U.esc(p.code) + '</b>' : ''}${p.category ? ' · ' + U.esc(p.category) : ''} · plantilla <b>${U.esc(t.name)}</b> · precio actual <b>${U.esc(U.fmt(p.price, st))}</b>`;
+  const v = U.parsePrice($('#qPrice').value);
+  if (v > 0 && v !== p.price) {
+    const jump = bigJump(p.price, v);
+    h += ` → nuevo <b>${U.esc(U.fmt(v, st))}</b> <span class="badge ${jump ? 'b-warn' : v > p.price ? 'b-up' : 'b-down'}">${pctTxt(p.price, v)}</span>`
+      + (jump ? ' <b class="bad-txt">¿Seguro? Revisá los ceros.</b>' : '');
+  }
+  const o = $('#qOffer').value.trim() ? U.parsePrice($('#qOffer').value) : null;
+  const ref = v > 0 ? v : p.price;
+  if (badOffer(o, ref)) h += ` <b class="bad-txt">La oferta tiene que ser más barata que el precio.</b>`;
+  $('#qInfo').innerHTML = h;
 }
 function resetEntry() {
   Q.sel = null;
@@ -279,6 +311,9 @@ async function commitEntry() {
   const qty = Math.max(1, parseInt($('#qQty').value, 10) || 1);
   let isNew = false;
   if (!p && !(price > 0)) { toast('Falta el precio'); $('#qPrice').focus(); return; }
+  const ref = price > 0 ? price : p ? p.price : 0;
+  if (badOffer(offer, ref)) { toast(offerMsg(offer, ref)); $('#qOffer').focus(); $('#qOffer').select(); return; }
+  if (p && price > 0 && !(await confirmJump(p, price))) { $('#qPrice').focus(); $('#qPrice').select(); return; }
   resetEntry(); // limpiar ya, así se puede seguir escribiendo o escaneando sin esperar
   if (!p) {
     p = newProduct({ name, price, offer: offer > 0 ? offer : null, tpl });
@@ -398,6 +433,8 @@ function bindImprimir() {
       if (e.key === 'Escape') resetEntry();
     });
   }
+  $('#qPrice').addEventListener('input', renderPriceHint);
+  $('#qOffer').addEventListener('input', renderPriceHint);
   $('#qAdd').onclick = commitEntry;
 
   const tb = $('#qTable');
@@ -412,14 +449,14 @@ function bindImprimir() {
     if (el.classList.contains('q-tpl')) { it.tpl = el.value; saveQueue(); }
     if (el.classList.contains('q-price')) {
       const v = U.parsePrice(el.value);
-      if (v > 0) { if (setPrice(p, v)) await saveProducts([p]); }
+      if (v > 0 && v !== p.price && (await confirmJump(p, v)) && setPrice(p, v)) { await saveProducts([p]); warnOffer(p); }
       el.value = U.num(p.price);
     }
     if (el.classList.contains('q-offer')) {
       const v = el.value.trim() ? U.parsePrice(el.value) : null;
-      p.offer = v > 0 ? v : null;
+      if (badOffer(v, p.price)) toast(offerMsg(v, p.price));
+      else { p.offer = v > 0 ? v : null; await saveProducts([p]); }
       el.value = U.num(p.offer);
-      await saveProducts([p]);
     }
     Q.previewId = p.id;
     renderQPreview();
@@ -884,14 +921,14 @@ function bindCatalog() {
     if (el.classList.contains('c-sel')) { el.checked ? C.sel.add(p.id) : C.sel.delete(p.id); tr.classList.toggle('sel', el.checked); renderScope(); return; }
     if (el.classList.contains('c-price')) {
       const v = U.parsePrice(el.value);
-      if (v > 0 && setPrice(p, v)) await saveProducts([p]);
+      if (v > 0 && v !== p.price && (await confirmJump(p, v)) && setPrice(p, v)) { await saveProducts([p]); warnOffer(p); }
       el.value = U.num(p.price);
     }
     if (el.classList.contains('c-offer')) {
       const v = el.value.trim() ? U.parsePrice(el.value) : null;
-      p.offer = v > 0 ? v : null;
+      if (badOffer(v, p.price)) toast(offerMsg(v, p.price));
+      else { p.offer = v > 0 ? v : null; await saveProducts([p]); }
       el.value = U.num(p.offer);
-      await saveProducts([p]);
     }
     tr.querySelector('.st').innerHTML = badge(p);
   });
@@ -1046,7 +1083,8 @@ function editProduct(p) {
       <label class="field">Unidad<select id="eUnit">${[['', 'Detectar del nombre'], ['g', 'gramos'], ['kg', 'kilos'], ['ml', 'ml / cc'], ['l', 'litros']].map(([v, l]) => `<option value="${v}"${d0.unit === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
     <datalist id="eCatList">${categories().map(([c]) => `<option value="${U.esc(c)}">`).join('')}</datalist>
-    <p class="hint" style="margin-top:8px">El precio por kilo o litro se calcula solo si el nombre dice el contenido (ej: “500 g”, “1,5 L”, “900 cc”).</p>
+    <p id="eWarn" class="warn-box" hidden></p>
+    <p class="hint" style="margin-top:8px">El precio por kilo o litro se calcula solo si el nombre dice el contenido (ej: “500 g”, “1,5 L”, “900 cc”, “3 x 100 g”).</p>
     <h3>Vista previa</h3><div id="ePrev" class="preview"></div></div>
     <div class="dlg-foot">${isNew ? '' : '<button id="eDel" class="danger" style="margin-right:auto">Eliminar</button>'}
       <button onclick="closeDialog()">Cancelar</button><button id="eSaveQ">Guardar y mandar a la cola</button><button id="eSave" class="primary">Guardar</button></div>`);
@@ -1061,7 +1099,14 @@ function editProduct(p) {
     const tmp = Object.assign({}, v, { price: v.price > 0 ? v.price : 0, name: v.name || 'Nombre del artículo' });
     const t = tplFor(tmp);
     showPreview($('#ePrev'), labelHTML(tmp, t), t, 1.3);
+    // Avisos en vivo: salto grande de precio u oferta más cara que el precio
+    const w = [];
+    if (!isNew && bigJump(p.price, v.price)) w.push(`El precio pasa de <b>${U.esc(U.fmt(p.price, S.settings))}</b> a <b>${U.esc(U.fmt(v.price, S.settings))}</b> (${pctTxt(p.price, v.price)}). ¿No será un cero de más o de menos?`);
+    if (badOffer(v.offer, v.price)) w.push(offerMsg(v.offer, v.price));
+    $('#eWarn').innerHTML = w.join('<br>');
+    $('#eWarn').hidden = !w.length;
   };
+  let jumpOk = null; // precio "raro" ya confirmado con un segundo clic en Guardar
   d.oninput = prev;
   d.onchange = prev;
   setTimeout(() => { prev(); (isNew ? $('#eName') : $('#ePrice')).focus(); if (!isNew) $('#ePrice').select(); }, 30);
@@ -1069,6 +1114,11 @@ function editProduct(p) {
     const v = read();
     if (!v.name) return toast('Falta el nombre');
     if (!(v.price > 0)) return toast('Falta el precio');
+    if (badOffer(v.offer, v.price)) return toast(offerMsg(v.offer, v.price));
+    if (!isNew && bigJump(p.price, v.price) && jumpOk !== v.price) {
+      jumpOk = v.price;
+      return toast('Revisá el precio. Si está bien, tocá <b>Guardar</b> otra vez.', { ms: 6000 });
+    }
     if (v.code) { const other = findByCode(v.code); if (other && other !== p && other._c === U.normCode(v.code)) return toast(`El código ${U.esc(v.code)} ya lo usa “${U.esc(other.name)}”`); }
     let prod = p;
     if (isNew) prod = newProduct(Object.assign({}, v));
@@ -1336,7 +1386,7 @@ function analyzeImport() {
     if (p._n) byName.set(p._n, p);
   }
   const seen = new Map();
-  let ignored = 0;
+  let ignored = 0, dup = 0;
   for (const r of rows.slice(IMP.headerRow + 1)) {
     const name = get(r, 'name');
     const code = get(r, 'code');
@@ -1346,9 +1396,10 @@ function analyzeImport() {
     const key = IMP.matchBy === 'code' && code ? 'c:' + U.normCode(code) : 'n:' + U.norm(name);
     const offRaw = m.offer == null ? '' : r[m.offer];
     const off = U.parsePrice(offRaw);
+    if (seen.has(key)) dup++;
     seen.set(key, { name, code, price, barcode: get(r, 'barcode'), category: get(r, 'category'), offer: off > 0 ? off : null });
   }
-  const A = { news: [], changed: [], same: [], ignored, dup: 0 };
+  const A = { news: [], changed: [], same: [], ignored, dup };
   for (const [key, row] of seen) {
     let p = byKey.get(key.slice(2));
     if (!p && row.barcode) p = byBar.get(U.normCode(row.barcode));
@@ -1358,6 +1409,9 @@ function analyzeImport() {
   }
   IMP.analysis = A;
   const ups = A.changed.filter((x) => x.row.price > x.p.price).length;
+  // Los cambios más grandes (posibles errores) primero
+  A.changed.sort((a, b) => Math.abs(Math.log(b.row.price / b.p.price)) - Math.abs(Math.log(a.row.price / a.p.price)));
+  const jumps = A.changed.filter((x) => bigJump(x.p.price, x.row.price)).length;
   const st = S.settings;
   $('#iStep3').innerHTML = `<div class="card"><h2>3. Resultado</h2>
     <div class="stats">
@@ -1365,9 +1419,11 @@ function analyzeImport() {
       <div class="stat new"><b>${A.news.length}</b>nuevos${IMP.addNew ? '' : ' <small>(no se agregan)</small>'}</div>
       <div class="stat ok"><b>${A.same.length}</b>sin cambios</div>
       <div class="stat"><b>${A.ignored}</b>filas sin nombre o sin precio (se saltean)</div>
+      ${A.dup ? `<div class="stat"><b>${A.dup}</b>filas repetidas <small>(vale la última)</small></div>` : ''}
     </div>
+    ${jumps ? `<p class="warn-box">⚠ <b>${jumps}</b> ${jumps === 1 ? 'precio cambia' : 'precios cambian'} al doble o más, o a la mitad o menos. Están arriba de todo en la lista: revisalos antes de confirmar.</p>` : ''}
     ${A.changed.length ? `<h3>Precios que cambian</h3><div class="scroll"><table class="tbl"><thead><tr><th>Artículo</th><th>Antes</th><th>Ahora</th><th>Dif.</th></tr></thead><tbody>
-      ${A.changed.slice(0, 300).map(({ p, row }) => { const d = (row.price / p.price - 1) * 100; return `<tr><td>${U.esc(p.name)}</td><td>${U.esc(U.fmt(p.price, st))}</td><td><b>${U.esc(U.fmt(row.price, st))}</b></td><td><span class="badge ${d > 0 ? 'b-up' : 'b-down'}">${d > 0 ? '+' : ''}${d.toFixed(1)}%</span></td></tr>`; }).join('')}
+      ${A.changed.slice(0, 300).map(({ p, row }) => { const d = (row.price / p.price - 1) * 100; return `<tr><td>${U.esc(p.name)}</td><td>${U.esc(U.fmt(p.price, st))}</td><td><b>${U.esc(U.fmt(row.price, st))}</b></td><td><span class="badge ${d > 0 ? 'b-up' : 'b-down'}">${d > 0 ? '+' : ''}${d.toFixed(1)}%</span>${bigJump(p.price, row.price) ? ' <span class="badge b-warn" title="Cambio muy grande: fijate que no sea un error en el Excel">⚠ revisar</span>' : ''}</td></tr>`; }).join('')}
       ${A.changed.length > 300 ? `<tr><td colspan="4" class="hint">… y ${A.changed.length - 300} más</td></tr>` : ''}</tbody></table></div>` : ''}
     ${A.news.length && IMP.addNew ? `<h3>Artículos nuevos</h3><div class="scroll" style="max-height:200px"><table class="tbl"><tbody>${A.news.slice(0, 100).map((r) => `<tr><td class="mono">${U.esc(r.code)}</td><td>${U.esc(r.name)}</td><td>${U.esc(r.category)}</td><td><b>${U.esc(U.fmt(r.price, st))}</b></td></tr>`).join('')}${A.news.length > 100 ? `<tr><td colspan="4" class="hint">… y ${A.news.length - 100} más</td></tr>` : ''}</tbody></table></div>` : ''}
     <div style="margin-top:14px"><button id="iApply" class="primary big">Confirmar e importar</button> <button onclick="document.getElementById('iStep3').innerHTML=''">← Volver a las columnas</button> <button id="iCancel3" class="danger">✕ Cancelar y descartar este archivo</button></div></div>`;

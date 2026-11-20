@@ -128,6 +128,9 @@ label.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; curso
 .b-down { background: var(--ok-soft); color: #065f46; }
 .b-new { background: var(--warn-soft); color: var(--warn); }
 .b-offer { background: #fce7f3; color: #9d174d; }
+.b-warn { background: #fde68a; color: #78350f; }
+.bad-txt { color: var(--bad); }
+.warn-box { background: var(--warn-soft); border: 1px solid #fcd34d; color: #78350f; border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 13px; }
 
 /* ---------- Vista previa ---------- */
 .preview { background: repeating-conic-gradient(#f3f4f6 0 25%, #fff 0 50%) 0 0 / 16px 16px; border-radius: 8px; padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 160px; overflow: hidden; }
