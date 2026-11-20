@@ -71,6 +71,39 @@ function markPrinted(list) {
   for (const p of list) { p.printedPrice = p.price; p.printedOffer = p.offer ?? null; }
   return saveProducts(list);
 }
+/* Borra artículos del catálogo (y de la cola). Deja un botón "Deshacer" unos segundos. */
+async function removeProducts(list, msg) {
+  const ids = new Set(list.map((p) => p.id));
+  const qGone = S.queue.filter((q) => ids.has(q.pid));
+  const snap = list.map(plainProduct);
+  await DB.deleteProducts([...ids]);
+  S.products = S.products.filter((p) => !ids.has(p.id));
+  ids.forEach((id) => { S.byId.delete(id); C.sel.delete(id); });
+  S.queue = S.queue.filter((q) => !ids.has(q.pid));
+  saveQueue();
+  updateCounts();
+  toast(msg, { ms: 10000, action: { label: 'Deshacer', fn: async () => {
+    const back = snap.filter((o) => !S.byId.has(o.id)).map((o) => newProduct(o));
+    await saveProducts(back);
+    for (const q of qGone) if (!S.queue.some((x) => x.id === q.id)) S.queue.push(q);
+    saveQueue();
+    refreshView();
+    toast(back.length === 1 ? `“${U.esc(back[0].name)}” volvió al catálogo` : `${back.length} artículos volvieron al catálogo`);
+  } } });
+}
+/* Vuelve a dibujar lo que se está viendo (después de deshacer algo) */
+function refreshView() {
+  if (!$('#printView').hidden) {
+    if (!S.queue.some((x) => x.id === PV.selQ)) PV.selQ = null;
+    buildSheets();
+    renderSide();
+    return;
+  }
+  updateCounts();
+  if (S.tab === 'imprimir') renderQueue();
+  else if (S.tab === 'catalogo') renderCatalog();
+  else if (S.tab === 'plantillas') renderTemplatesTab();
+}
 function findByCode(q) {
   const c = U.normCode(q);
   if (!c) return null;
@@ -716,12 +749,8 @@ async function deleteProductFromSheet(qid) {
   const q = S.queue.find((x) => x.id === qid);
   const p = q && S.byId.get(q.pid);
   if (!p) return;
-  if (!(await confirmDlg(`¿Borrar <b>“${U.esc(p.name)}”</b> del catálogo? Sale de la hoja y de la lista de artículos. No se puede deshacer.`, 'Borrar', true))) return;
-  await DB.deleteProducts([p.id]);
-  S.products = S.products.filter((x) => x !== p);
-  S.byId.delete(p.id);
-  S.queue = S.queue.filter((x) => x.pid !== p.id);
-  toast(`“${U.esc(p.name)}” borrado del catálogo`);
+  if (!(await confirmDlg(`¿Borrar <b>“${U.esc(p.name)}”</b> del catálogo? Sale de la hoja y de la lista de artículos.`, 'Borrar', true))) return;
+  await removeProducts([p], `“${U.esc(p.name)}” borrado del catálogo`);
   afterQueueChange();
 }
 
@@ -967,17 +996,9 @@ function bindCatalog() {
   $('#cDel').onclick = async () => {
     const list = scopeList();
     if (!list.length) return;
-    if (!(await confirmDlg(`¿Eliminar ${scopeText()} del catálogo? No se puede deshacer.`, 'Eliminar', true))) return;
-    const ids = list.map((p) => p.id);
-    const idSet = new Set(ids);
-    await DB.deleteProducts(ids);
-    S.products = S.products.filter((p) => !idSet.has(p.id));
-    ids.forEach((id) => { S.byId.delete(id); C.sel.delete(id); });
-    S.queue = S.queue.filter((q) => !idSet.has(q.pid));
-    saveQueue();
-    updateCounts();
+    if (!(await confirmDlg(`¿Eliminar ${scopeText()} del catálogo?<br><small>Si te equivocás, vas a tener unos segundos para deshacerlo.</small>`, 'Eliminar', true))) return;
+    await removeProducts(list, list.length === 1 ? `“${U.esc(list[0].name)}” eliminado` : `${list.length} artículos eliminados`);
     renderCatalog();
-    toast(`${ids.length} artículos eliminados`);
   };
   $('#cUndo').onclick = async () => {
     const b = S.lastBulk;
@@ -1133,14 +1154,9 @@ function editProduct(p) {
   $('#eSaveQ').onclick = () => save(true);
   d.onkeydown = (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); save(false); } };
   if (!isNew) $('#eDel').onclick = async () => {
-    if (!(await confirmDlg(`¿Eliminar “${U.esc(p.name)}”?`, 'Eliminar', true))) return;
-    await DB.deleteProducts([p.id]);
-    S.products = S.products.filter((x) => x !== p);
-    S.byId.delete(p.id);
-    S.queue = S.queue.filter((q) => q.pid !== p.id);
-    saveQueue();
-    updateCounts();
-    if (S.tab === 'catalogo') renderCatalog(); else renderQueue();
+    closeDialog();
+    await removeProducts([p], `“${U.esc(p.name)}” eliminado`);
+    refreshView();
   };
 }
 
@@ -1694,7 +1710,7 @@ function bindSettings() {
   };
 }
 function downloadBackup() {
-  const data = { app: 'paraimprimir', version: 1, date: Date.now(), products: S.products.map((p) => { const o = {}; for (const k in p) if (k[0] !== '_') o[k] = p[k]; return o; }),
+  const data = { app: 'paraimprimir', version: 1, date: Date.now(), products: S.products.map(plainProduct),
     templates: S.templates, settings: S.settings, catMap: S.catMap, queue: S.queue };
   U.download(`precios-copia-${U.today()}.json`, JSON.stringify(data), 'application/json');
   S.settings.lastBackup = Date.now();
