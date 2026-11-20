@@ -1751,6 +1751,16 @@ async function init() {
   bindTemplates();
   bindSettings();
   document.addEventListener('keydown', (e) => {
+    // Ctrl+P: desde la pantalla principal salía una hoja en blanco. Ahora abre la hoja de carteles; ahí adentro, imprime.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'p' || e.key === 'P')) {
+      e.preventDefault();
+      if (!$('#printView').hidden) { $('#pvPrint').click(); return; }
+      if ($('#dlg').open) return;
+      if (!S.queue.length) { toast('No hay carteles en la cola. Cargá artículos o tocá “+ Pendientes de imprimir”.'); return; }
+      openSheets();
+      toast('Revisá la hoja y apretá <b>Imprimir</b> (o Ctrl+P otra vez).', { ms: 5000 });
+      return;
+    }
     if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !$('#dlg').open && $('#printView').hidden) {
       e.preventDefault();
       if (S.tab === 'catalogo') $('#cSearch').focus(); else { showTab('imprimir'); $('#qName').focus(); }

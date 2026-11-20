@@ -51,7 +51,7 @@
               <div class="row">
                 <button id="btnPending" title="Agrega todos los artículos con precio nuevo que todavía no imprimiste">+ Pendientes de imprimir (<span id="pendCount">0</span>)</button>
                 <button id="btnClearQ" class="ghost">Vaciar cola</button>
-                <button id="btnSheet" class="primary big">Ver hoja e imprimir</button>
+                <button id="btnSheet" class="primary big" title="Atajo: Ctrl+P">Ver hoja e imprimir</button>
               </div>
             </div>
             <div class="tbl-wrap"><table class="tbl" id="qTable"></table></div>
@@ -209,7 +209,7 @@
     <label>Separación <input type="number" id="pvGap" step="0.5" min="0"> mm</label>
     <label><input type="checkbox" id="pvCut"> Líneas de corte</label>
     <span class="spacer"></span>
-    <button id="pvPrint" class="primary big">Imprimir</button>
+    <button id="pvPrint" class="primary big" title="Atajo: Ctrl+P">Imprimir</button>
     <button id="pvDone" class="ok">✓ Salió bien: marcar impresos y vaciar cola</button>
   </div>
   <div class="pv-tip">En la ventana de impresión elegí <b>Escala: 100% (o “Tamaño real”)</b>, <b>Márgenes: Ninguno</b> y activá <b>“Gráficos de fondo”</b> para que salgan los colores. Así las medidas salen exactas.</div>
