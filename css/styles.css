@@ -97,12 +97,16 @@ label.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; curso
 .ac-wrap input { width: 100%; }
 .ac {
   position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .15); z-index: 30; max-height: 360px; overflow: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .15); z-index: 30; max-height: 400px; overflow: auto; min-width: min(460px, calc(100vw - 32px));
 }
 .ac div { padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid #f3f4f6; }
 .ac div.on, .ac div:hover { background: var(--brand-soft); }
 .ac b { font-weight: 600; }
 .ac .pr { font-weight: 700; white-space: nowrap; }
+.ac div.ac-new { color: #374151; background: #f9fafb; }
+.ac div.ac-new.on { background: var(--warn-soft); }
+.ac .ac-inq { background: var(--ok-soft); color: #065f46; border-radius: 99px; padding: 0 6px; font-size: 11px; }
+.ac .ac-tip { margin: 0; padding: 5px 10px; font-size: 11px; color: var(--muted); text-align: right; }
 
 /* ---------- Tablas ---------- */
 .tbl-wrap { overflow-x: auto; }

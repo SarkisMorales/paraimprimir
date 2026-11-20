@@ -31,7 +31,8 @@ La primera vez Windows puede preguntar si querés ejecutarlo: elegí **Más info
 ## Carga rápida (pestaña Imprimir)
 
 - Escribí parte del nombre o el código (o escaneá el código de barras), **Enter**, precio, **Enter**. Ya está en la cola.
-- Si el artículo no existe, se crea solo en el catálogo.
+- **Enter elige la primera sugerencia** (la que está marcada). Con las flechas ↑ ↓ elegís otra.
+- Si el artículo no existe, se crea solo en el catálogo. Si querés crear uno nuevo aunque haya parecidos, elegí la última opción: **➕ Crear "…" como artículo nuevo**.
 - Podés **pegar una lista** entera, una línea por artículo: `Galletitas Oreo 118 g 1250`.
 - Campo **Oferta**: el cartel sale con la franja "OFERTA" y el precio anterior tachado.
 

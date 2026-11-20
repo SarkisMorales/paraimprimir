@@ -198,29 +198,39 @@ function renderImprimir() {
   setTimeout(() => $('#qName').focus(), 0);
 }
 
+/* Sugerencias mientras escribís. La primera ya viene marcada: Enter la elige.
+   La última opción (índice = Q.ac.length) es "crear como artículo nuevo". */
 function renderAc() {
   const v = $('#qName').value.trim();
   const box = $('#qAc');
   if (!v || v.includes('\n')) { box.hidden = true; Q.ac = []; Q.acIdx = -1; return; }
   Q.ac = searchProducts(v).slice(0, 8);
-  Q.acIdx = -1;
+  Q.acIdx = Q.ac.length ? 0 : -1;
   if (!Q.ac.length) {
-    box.innerHTML = `<div style="cursor:default"><span>No está en el catálogo: se crea como <b>artículo nuevo</b>. Poné el precio y Enter.</span></div>`;
+    box.innerHTML = `<div class="ac-new" style="cursor:default"><span>No está en el catálogo: se crea como <b>artículo nuevo</b>. Poné el precio y Enter.</span></div>`;
     box.hidden = false;
     return;
   }
-  box.innerHTML = Q.ac.map((p, i) => `<div data-i="${i}"><span><b>${U.esc(p.name)}</b> ${p.code ? `<small class="mono">${U.esc(p.code)}</small>` : ''}</span><span class="pr">${U.esc(U.fmt(p.price, S.settings))}</span></div>`).join('');
+  const inQ = new Set(S.queue.map((q) => q.pid));
+  box.innerHTML = Q.ac.map((p, i) => `<div data-i="${i}"${i === Q.acIdx ? ' class="on"' : ''}><span><b>${U.esc(p.name)}</b> ${p.code ? `<small class="mono">${U.esc(p.code)}</small>` : ''}${inQ.has(p.id) ? ' <small class="ac-inq">en la cola</small>' : ''}</span><span class="pr">${U.esc(U.fmt(p.price, S.settings))}</span></div>`).join('')
+    + `<div data-i="${Q.ac.length}" class="ac-new"><span>➕ Crear <b>“${U.esc(v)}”</b> como artículo nuevo</span></div>`
+    + `<p class="ac-tip">↑ ↓ para elegir · <b>Enter</b> confirma · Esc cierra</p>`;
   box.hidden = false;
 }
 function moveAc(d) {
   if (!Q.ac.length) return;
-  const n = Q.ac.length;
-  let i = Q.acIdx < 0 ? n : Q.acIdx;
-  i = (i + d + n + 1) % (n + 1);
-  Q.acIdx = i === n ? -1 : i;
-  $$('#qAc div').forEach((el, i) => el.classList.toggle('on', i === Q.acIdx));
+  const n = Q.ac.length + 1; // sugerencias + "crear nuevo"
+  Q.acIdx = ((Q.acIdx < 0 ? 0 : Q.acIdx) + d + n) % n;
+  $$('#qAc [data-i]').forEach((el) => el.classList.toggle('on', +el.dataset.i === Q.acIdx));
   const on = $('#qAc .on');
   if (on) on.scrollIntoView({ block: 'nearest' });
+}
+/* Elegiste "crear nuevo": se queda el texto como nombre y pasa al precio */
+function chooseNew() {
+  Q.sel = null;
+  $('#qAc').hidden = true;
+  $('#qInfo').innerHTML = `Artículo <b>nuevo</b>: se agrega al catálogo cuando pongas el precio y apretes Enter.`;
+  $('#qPrice').focus();
 }
 function pickProduct(p) {
   Q.sel = p;
@@ -359,15 +369,17 @@ function bindImprimir() {
     else if (e.key === 'Escape') { if (!$('#qAc').hidden) $('#qAc').hidden = true; else resetEntry(); }
     else if (e.key === 'Enter') {
       e.preventDefault();
-      if (Q.acIdx >= 0 && Q.ac[Q.acIdx]) return pickProduct(Q.ac[Q.acIdx]);
       const v = qn.value.trim();
       if (!v) return;
-      const p = Q.sel || findByCode(v) || findByName(v);
-      if (p) return pickProduct(p);
-      $('#qAc').hidden = true;
-      $('#qPrice').focus();
+      // Código exacto (lector de barras) o nombre exacto: va directo
+      const exact = Q.sel || findByCode(v) || findByName(v);
+      if (exact) return pickProduct(exact);
+      // Si no, la sugerencia marcada (la primera, salvo que elijas otra con las flechas)
+      if (!$('#qAc').hidden && Q.acIdx >= 0 && Q.ac[Q.acIdx]) return pickProduct(Q.ac[Q.acIdx]);
+      chooseNew();
     }
   });
+  qn.addEventListener('focus', () => { if (!Q.sel && qn.value.trim()) renderAc(); });
   qn.addEventListener('blur', () => setTimeout(() => { $('#qAc').hidden = true; }, 150));
   qn.addEventListener('paste', (e) => {
     const text = (e.clipboardData || window.clipboardData).getData('text');
@@ -375,7 +387,10 @@ function bindImprimir() {
   });
   $('#qAc').addEventListener('mousedown', (e) => {
     const d = e.target.closest('[data-i]');
-    if (d) { e.preventDefault(); pickProduct(Q.ac[+d.dataset.i]); }
+    if (!d) return;
+    e.preventDefault();
+    const p = Q.ac[+d.dataset.i];
+    if (p) pickProduct(p); else chooseNew();
   });
   for (const id of ['#qPrice', '#qOffer', '#qQty', '#qTpl']) {
     $(id).addEventListener('keydown', (e) => {
