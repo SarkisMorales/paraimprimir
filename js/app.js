@@ -1141,10 +1141,12 @@ function assignDialog() {
   };
 }
 
-function editProduct(p) {
+/* p = artículo a editar (null = nuevo). base = datos para arrancar un nuevo (al duplicar). */
+function editProduct(p, base) {
   const isNew = !p;
-  const d0 = p || { code: '', barcode: '', name: '', category: C.cat !== '__all' ? C.cat : '', tpl: '', price: null, offer: null, content: null, unit: '' };
-  const d = openDialog(`<div class="dlg-body"><h2>${isNew ? 'Nuevo artículo' : 'Editar artículo'}</h2>
+  const d0 = p || Object.assign({ code: '', barcode: '', name: '', category: C.cat !== '__all' ? C.cat : '', tpl: '', price: null, offer: null, content: null, unit: '' }, base);
+  const d = openDialog(`<div class="dlg-body"><h2>${isNew ? (base ? 'Nuevo artículo (copia)' : 'Nuevo artículo') : 'Editar artículo'}</h2>
+    ${base ? '<p class="hint">Cambiá lo que sea distinto (sabor, tamaño, precio) y guardá. El código y el código de barras quedan vacíos.</p>' : ''}
     <div class="fields" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
       <label class="field" style="grid-column:1/-1">Nombre (como sale en el cartel)<input id="eName" value="${U.esc(d0.name)}" style="font-size:17px"></label>
       <label class="field">Precio<input id="ePrice" value="${U.num(d0.price)}" inputmode="decimal" style="font-size:17px;font-weight:700"></label>
@@ -1160,7 +1162,7 @@ function editProduct(p) {
     <p id="eWarn" class="warn-box" hidden></p>
     <p class="hint" style="margin-top:8px">El precio por kilo o litro se calcula solo si el nombre dice el contenido (ej: “500 g”, “1,5 L”, “900 cc”, “3 x 100 g”).</p>
     <h3>Vista previa</h3><div id="ePrev" class="preview"></div></div>
-    <div class="dlg-foot">${isNew ? '' : '<button id="eDel" class="danger" style="margin-right:auto">Eliminar</button>'}
+    <div class="dlg-foot">${isNew ? '' : '<button id="eDel" class="danger">Eliminar</button><button id="eDup" style="margin-right:auto" title="Crea otro artículo igual, para cargar rápido otro sabor o tamaño">Duplicar</button>'}
       <button onclick="closeDialog()">Cancelar</button><button id="eSaveQ">Guardar y mandar a la cola</button><button id="eSave" class="primary">Guardar</button></div>`);
   const read = () => {
     const off = $('#eOffer').value.trim() ? U.parsePrice($('#eOffer').value) : null;
@@ -1188,6 +1190,7 @@ function editProduct(p) {
     const v = read();
     if (!v.name) return toast('Falta el nombre');
     if (!(v.price > 0)) return toast('Falta el precio');
+    if (isNew && findByName(v.name)) return toast(`Ya hay un artículo que se llama “${U.esc(v.name)}”. Cambiale el nombre (por ejemplo, el sabor o el tamaño).`, { ms: 6000 });
     if (badOffer(v.offer, v.price)) return toast(offerMsg(v.offer, v.price));
     if (!isNew && bigJump(p.price, v.price) && jumpOk !== v.price) {
       jumpOk = v.price;
@@ -1206,6 +1209,11 @@ function editProduct(p) {
   $('#eSave').onclick = () => save(false);
   $('#eSaveQ').onclick = () => save(true);
   d.onkeydown = (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); save(false); } };
+  if (!isNew) $('#eDup').onclick = () => {
+    const v = read();
+    editProduct(null, { name: v.name, price: v.price > 0 ? v.price : null, offer: v.offer, category: v.category, tpl: v.tpl, content: v.content, unit: v.unit });
+    setTimeout(() => { $('#eName').focus(); $('#eName').select(); }, 40);
+  };
   if (!isNew) $('#eDel').onclick = async () => {
     closeDialog();
     await removeProducts([p], `“${U.esc(p.name)}” eliminado`);
