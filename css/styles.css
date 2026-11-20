@@ -76,6 +76,7 @@ button.ghost { background: transparent; }
 button.danger { color: var(--bad); border-color: #fca5a5; }
 button.danger:hover { background: var(--bad-soft); }
 button.small { padding: 3px 8px; font-size: 12px; }
+.btn-sub { font-weight: 400; opacity: .85; font-size: .85em; }
 button.flash { animation: flash 1s ease-in-out 3; }
 @keyframes flash { 50% { box-shadow: 0 0 0 6px #fde68a; } }
 

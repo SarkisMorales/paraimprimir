@@ -212,7 +212,20 @@ function updateCounts() {
   $('#tabQ').textContent = S.queue.reduce((a, it) => a + (+it.qty || 0), 0);
   $('#tabC').textContent = S.products.length;
   $('#pendCount').textContent = S.products.filter(isPending).length;
+  const n = sheetEstimate();
+  $('#btnSheet').innerHTML = 'Ver hoja e imprimir' + (n ? ` <small class="btn-sub">· ${n} ${n === 1 ? 'hoja' : 'hojas'}</small>` : '');
   renderBanner();
+}
+/* Cuántas hojas va a usar la cola, con el mismo acomodo que la vista de hoja */
+function sheetEstimate() {
+  const labels = [];
+  for (const it of S.queue) {
+    const p = S.byId.get(it.pid);
+    if (!p) continue;
+    const t = tplFor(p, it.tpl);
+    for (let i = 0; i < (+it.qty || 1); i++) labels.push({ w: t.w, h: t.h });
+  }
+  return labels.length ? packLabels(labels, S.settings).pages.length : 0;
 }
 function renderBanner() {
   const st = S.settings;
@@ -401,7 +414,11 @@ function renderQueue() {
   $('#qCount').textContent = S.queue.reduce((a, it) => a + (+it.qty || 0), 0);
   updateCounts();
   if (!S.queue.length) {
-    tb.innerHTML = `<tr><td class="empty">La cola está vacía. Cargá artículos arriba, mandalos desde el <b>Catálogo</b> o tocá <b>“+ Pendientes de imprimir”</b>.</td></tr>`;
+    const pend = S.products.filter(isPending).length;
+    tb.innerHTML = `<tr><td class="empty">${S.products.length
+      ? 'La cola está vacía. Cargá artículos arriba, mandalos desde el <b>Catálogo</b> o tocá <b>“+ Pendientes de imprimir”</b>.'
+      : 'Todavía no hay artículos. Escribí uno arriba con su precio, o traé todos juntos desde tu Excel.<p><button class="primary" data-go="importar">Importar desde Excel</button></p>'}
+      ${pend ? `<p><button class="primary" data-pend>+ Agregar los ${pend} ${pend === 1 ? 'pendiente' : 'pendientes'} de imprimir</button></p>` : ''}</td></tr>`;
     renderQPreview();
     return;
   }
@@ -496,6 +513,9 @@ function bindImprimir() {
   });
   tb.addEventListener('keydown', (e) => moveInColumn(e, '.q-price, .q-offer, .q-qty'));
   tb.addEventListener('click', (e) => {
+    if (e.target.closest('[data-pend]')) return $('#btnPending').click();
+    const go = e.target.closest('[data-go]');
+    if (go) return showTab(go.dataset.go);
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
     const it = S.queue.find((q) => q.id === tr.dataset.id);
@@ -512,7 +532,7 @@ function bindImprimir() {
     if (!list.length) return toast('No hay artículos pendientes: todo lo que está en góndola tiene el precio al día.');
     const n = addToQueue(list.map((p) => ({ pid: p.id, qty: 1 })), false);
     renderQueue();
-    toast(`${n} artículos pendientes agregados a la cola`);
+    toast(n ? `${n} ${n === 1 ? 'artículo pendiente agregado' : 'artículos pendientes agregados'} a la cola` : `Los ${list.length} pendientes ya estaban en la cola`);
   };
   $('#btnClearQ').onclick = async () => {
     if (!S.queue.length) return;
