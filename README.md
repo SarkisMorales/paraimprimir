@@ -41,7 +41,8 @@ La primera vez Windows puede preguntar si querés ejecutarlo: elegí **Más info
 - Búsqueda instantánea, sin importar tildes ni mayúsculas ("oreo 118" encuentra "Galletitas Oreo 118 g").
 - Filtros: pendientes de imprimir, cambiados en la última semana, con oferta, sin categoría.
 - **Aumento / descuento %** a una categoría, a la búsqueda o a los seleccionados, con redondeo (a $10, $50, etc.). Se puede deshacer.
-- En la columna Precio: escribís y **Enter** pasa al siguiente artículo.
+- En las columnas Precio y Oferta: escribís y **Enter** (o las flechas ↑ ↓) pasa al siguiente artículo, como en Excel.
+- **Ordenar** tocando el título de cualquier columna. "Estado" pone primero los pendientes de imprimir y lo último que cambió.
 - Exportar a Excel.
 
 ## Plantillas

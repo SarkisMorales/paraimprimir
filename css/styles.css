@@ -111,7 +111,16 @@ label.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; curso
 /* ---------- Tablas ---------- */
 .tbl-wrap { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; }
-.tbl th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 2px solid var(--line); white-space: nowrap; position: sticky; top: 0; background: #fff; }
+.tbl th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 2px solid var(--line); white-space: nowrap; position: sticky; top: 0; background: #fff; z-index: 1; }
+.tbl th.sortable { cursor: pointer; user-select: none; }
+.tbl th.sortable:hover { color: var(--ink); background: #f9fafb; }
+.tbl th.sortable .arr { margin-left: 4px; opacity: .35; font-size: 10px; }
+.tbl th.sortable.on { color: var(--brand); }
+.tbl th.sortable.on .arr { opacity: 1; }
+/* Catálogo en compu: la tabla tiene su propio desplazamiento y los títulos quedan siempre a la vista */
+@media (min-width: 901px) {
+  #tab-catalogo .tbl-wrap { max-height: calc(100vh - 250px); min-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+}
 .tbl td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .tbl tr:hover td { background: #f9fafb; }
 .tbl tr.sel td { background: #eff6ff; }

@@ -494,15 +494,7 @@ function bindImprimir() {
     Q.previewId = p.id;
     renderQPreview();
   });
-  tb.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.matches('input')) {
-      e.preventDefault();
-      const cls = [...e.target.classList].find((c) => c.startsWith('q-'));
-      const next = e.target.closest('tr').nextElementSibling;
-      e.target.blur();
-      if (next) { const n = next.querySelector('.' + cls); if (n) { n.focus(); n.select && n.select(); } }
-    }
-  });
+  tb.addEventListener('keydown', (e) => moveInColumn(e, '.q-price, .q-offer, .q-qty'));
   tb.addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
@@ -864,7 +856,38 @@ function bindPrintView() {
 /* =====================================================================
    CATÁLOGO
    ===================================================================== */
-const C = { q: '', cat: '__all', status: '', sel: new Set(), limit: 200, list: [] };
+const C = { q: '', cat: '__all', status: '', sel: new Set(), limit: 200, list: [], sort: null };
+
+/* Orden por columna (clic en el título). Sin elegir nada: por relevancia de la búsqueda o por nombre. */
+const SORTS = {
+  code: (a, b) => (!a.code - !b.code) || COLL.compare(a.code, b.code),
+  name: (a, b) => COLL.compare(a.name, b.name),
+  cat: (a, b) => (!a.category - !b.category) || COLL.compare(a.category, b.category) || COLL.compare(a.name, b.name),
+  tpl: (a, b) => COLL.compare(tplFor(a).name, tplFor(b).name) || COLL.compare(a.name, b.name),
+  price: (a, b) => a.price - b.price,
+  offer: (a, b) => (!(a.offer > 0) - !(b.offer > 0)) || (a.offer || 0) - (b.offer || 0),
+  // Pendientes de imprimir primero; dentro de cada grupo, lo último que cambió arriba
+  status: (a, b) => (isPending(b) - isPending(a)) || (b.updatedAt || 0) - (a.updatedAt || 0),
+};
+function sortHead(k, label, title = '') {
+  const on = C.sort && C.sort.k === k;
+  return `<th data-sort="${k}" class="sortable${on ? ' on' : ''}" title="${title || 'Ordenar por ' + label.toLowerCase()}">${label}<span class="arr">${on ? (C.sort.dir > 0 ? '▲' : '▼') : '↕'}</span></th>`;
+}
+/* En las tablas: Enter o ↓ bajan al mismo campo de la fila de abajo; ↑ o Shift+Enter suben. Como en Excel. */
+function moveInColumn(e, sel) {
+  const el = e.target;
+  if (!el.matches(sel)) return;
+  const arrows = el.type !== 'number'; // en los campos de cantidad las flechas suben y bajan el número
+  const dir = e.key === 'Enter' ? (e.shiftKey ? -1 : 1) : arrows && e.key === 'ArrowDown' ? 1 : arrows && e.key === 'ArrowUp' ? -1 : 0;
+  if (!dir) return;
+  e.preventDefault();
+  const cls = [...el.classList].find((c) => /^[cq]-/.test(c));
+  const tr = el.closest('tr');
+  const sib = dir > 0 ? tr.nextElementSibling : tr.previousElementSibling;
+  el.blur();
+  const n = sib && sib.querySelector('.' + cls);
+  if (n) { n.focus(); if (n.select) n.select(); }
+}
 
 function badge(p) {
   let h = p.offer > 0 ? '<span class="badge b-offer">Oferta</span> ' : '';
@@ -896,6 +919,7 @@ function renderCatalog() {
   $('#cCat').innerHTML = `<option value="__all">Todas las categorías</option>` + cats.map(([c, n]) => `<option value="${U.esc(c)}"${c === C.cat ? ' selected' : ''}>${U.esc(c)} (${n})</option>`).join('');
   $('#cStatus').value = C.status;
   C.list = searchProducts(C.q, { cat: C.cat, status: C.status });
+  if (C.sort) { const f = SORTS[C.sort.k], d = C.sort.dir; C.list.sort((a, b) => d * f(a, b) || COLL.compare(a.name, b.name)); }
   for (const id of C.sel) if (!S.byId.has(id)) C.sel.delete(id);
   $('#cCount').textContent = `${C.list.length} de ${S.products.length}`;
   $('#cUndo').hidden = !S.lastBulk;
@@ -908,7 +932,9 @@ function renderCatalog() {
     return;
   }
   const allSel = C.list.length > 0 && C.list.every((p) => C.sel.has(p.id));
-  tb.innerHTML = `<thead><tr><th><input type="checkbox" id="cAll" title="Seleccionar todos los de la lista"${allSel ? ' checked' : ''}></th><th>Código</th><th>Nombre</th><th>Categoría</th><th>Plantilla</th><th>Precio</th><th>Oferta</th><th>Estado</th><th></th></tr></thead><tbody>`
+  tb.innerHTML = `<thead><tr><th><input type="checkbox" id="cAll" title="Seleccionar todos los de la lista"${allSel ? ' checked' : ''}></th>`
+    + sortHead('code', 'Código') + sortHead('name', 'Nombre') + sortHead('cat', 'Categoría') + sortHead('tpl', 'Plantilla') + sortHead('price', 'Precio') + sortHead('offer', 'Oferta')
+    + sortHead('status', 'Estado', 'Ordenar: pendientes de imprimir primero, y lo último que cambió arriba') + `<th></th></tr></thead><tbody>`
     + (C.list.length ? C.list.slice(0, C.limit).map(catRow).join('') : `<tr><td colspan="9" class="empty">No se encontró nada. Probá con menos palabras.</td></tr>`)
     + '</tbody>';
   $('#cMore').hidden = C.list.length <= C.limit;
@@ -917,7 +943,7 @@ function renderCatalog() {
 function renderScope() {
   $('#cScope').innerHTML = C.sel.size
     ? `<b>${C.sel.size} seleccionados.</b> Los botones de arriba actúan sobre los seleccionados. <a href="#" id="cClearSel">Quitar selección</a>`
-    : `Sin selección: los botones de arriba actúan sobre los <b>${C.list.length}</b> artículos de la lista. Tip: en la columna Precio, escribí y apretá Enter para pasar al siguiente.`;
+    : `Sin selección: los botones de arriba actúan sobre los <b>${C.list.length}</b> artículos de la lista. Tip: en Precio u Oferta escribí y apretá <b>Enter</b> (o ↑ ↓) para pasar al siguiente, como en Excel. Tocá un título para ordenar.`;
   const a = $('#cClearSel');
   if (a) a.onclick = (e) => { e.preventDefault(); C.sel.clear(); renderCatalog(); };
 }
@@ -961,16 +987,15 @@ function bindCatalog() {
     }
     tr.querySelector('.st').innerHTML = badge(p);
   });
-  tb.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.matches('.c-price, .c-offer')) {
-      e.preventDefault();
-      const cls = e.target.classList.contains('c-price') ? '.c-price' : '.c-offer';
-      const next = e.target.closest('tr').nextElementSibling;
-      e.target.blur();
-      if (next) { const n = next.querySelector(cls); if (n) { n.focus(); n.select(); } }
-    }
-  });
+  tb.addEventListener('keydown', (e) => moveInColumn(e, '.c-price, .c-offer'));
   tb.addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort]');
+    if (th) {
+      const k = th.dataset.sort;
+      C.sort = C.sort && C.sort.k === k ? { k, dir: -C.sort.dir } : { k, dir: 1 };
+      renderCatalog();
+      return;
+    }
     const tr = e.target.closest('tr[data-id]');
     const p = tr && S.byId.get(tr.dataset.id);
     if (!p) return;
