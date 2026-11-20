@@ -89,14 +89,17 @@ const U = {
     return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getFullYear()).slice(2);
   },
 
-  /* Contenido neto a partir del nombre: "Yerba 500g", "Coca 2,25 L", "Aceite 900 cc" */
+  /* Contenido neto a partir del nombre: "Yerba 500g", "Coca 2,25 L", "Aceite 900 cc".
+     Packs: "3 x 101 g" o "125 g x 4" cuentan el total (303 g, 500 g), así el precio por kilo sale bien. */
   UNIT_MAP: { g: 'g', gr: 'g', grs: 'g', grm: 'g', gramo: 'g', gramos: 'g', kg: 'kg', kgs: 'kg', kilo: 'kg', kilos: 'kg',
     ml: 'ml', cc: 'ml', cm3: 'ml', l: 'l', lt: 'l', lts: 'l', ltr: 'l', litro: 'l', litros: 'l' },
   detectContent(name) {
-    const m = /(\d+(?:[.,]\d+)?)\s*(kgs?|kilos?|gramos?|grs?|grm|g|ml|cc|cm3|lts?|ltr|litros?|l)(?![a-z0-9])/i.exec(U.norm(name));
+    const m = /(?:(\d{1,3})\s*x\s*)?(\d+(?:[.,]\d+)?)\s*(kgs?|kilos?|gramos?|grs?|grm|g|ml|cc|cm3|lts?|ltr|litros?|l)(?![a-z0-9])(?:\s*x\s*(\d{1,3})(?![\d.,]))?/i.exec(U.norm(name));
     if (!m) return null;
-    const content = parseFloat(m[1].replace(',', '.'));
-    const unit = U.UNIT_MAP[m[2].toLowerCase()];
+    let content = parseFloat(m[2].replace(',', '.'));
+    const unit = U.UNIT_MAP[m[3].toLowerCase()];
+    const mult = +(m[1] || m[4] || 1);
+    if (mult >= 2 && mult <= 100) content = Math.round(content * mult * 1000) / 1000;
     return content > 0 && unit ? { content, unit } : null;
   },
   unitPriceText(price, c, st) {
