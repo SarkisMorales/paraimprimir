@@ -188,6 +188,14 @@ function toast(msg, opts = {}) {
   const box = $('#toasts');
   box.appendChild(el);
   while (box.children.length > 3) box.firstElementChild.remove();
+  // Volver a abrirlo lo pone encima de todo, incluso de un diálogo abierto
+  if (box.showPopover) {
+    try {
+      const open = box.matches(':popover-open');
+      if (open && $('#dlg').open) box.hidePopover();
+      if (!open || $('#dlg').open) box.showPopover();
+    } catch (e) { /* navegador viejo: queda como antes */ }
+  }
   setTimeout(() => el.remove(), opts.ms || 3500);
 }
 function openDialog(html) {
@@ -1835,6 +1843,9 @@ async function init() {
     }
   });
   window.addEventListener('afterprint', () => $('#pvDone').classList.add('flash'));
+  // Si cerrás la pestaña justo después de tocar una plantilla, que no se pierda el último cambio
+  window.addEventListener('pagehide', saveTemplatesNow);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveTemplatesNow(); });
   window.addEventListener('resize', U.debounce(() => { if (S.tab === 'imprimir') renderQPreview(); if (S.tab === 'plantillas') renderTplPreview(); }, 200));
   showTab('imprimir');
   checkUpdate();

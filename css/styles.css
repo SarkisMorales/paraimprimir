@@ -34,8 +34,9 @@ small, .hint { color: var(--muted); }
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   background: #111827; color: #fff; padding: 8px 16px; position: sticky; top: 0; z-index: 20;
 }
-.brand { font-size: 16px; white-space: nowrap; }
+.brand { font-size: 16px; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
 .brand b { color: #93c5fd; }
+.brand svg { width: 22px; height: 22px; flex: none; }
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .tabs button {
   background: transparent; color: #d1d5db; border: 0; padding: 8px 12px; border-radius: 8px; font-size: 14px; cursor: pointer;
@@ -53,7 +54,7 @@ main { padding: 16px; max-width: 1500px; margin: 0 auto; }
 .tab.active { display: block; }
 
 /* ---------- Tarjetas y botones ---------- */
-.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(17, 24, 39, .04); }
 .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
 .grid3 { display: grid; grid-template-columns: 240px minmax(0, 1fr) minmax(320px, 420px); gap: 16px; align-items: start; }
 .sticky { position: sticky; top: 70px; }
@@ -65,8 +66,11 @@ main { padding: 16px; max-width: 1500px; margin: 0 auto; }
 button, .btn {
   font: inherit; cursor: pointer; border: 1px solid #d1d5db; background: #fff; color: var(--ink);
   padding: 7px 12px; border-radius: 8px; white-space: nowrap;
+  transition: background-color .15s, border-color .15s, box-shadow .15s, transform .05s;
 }
 button:hover { background: #f9fafb; border-color: #9ca3af; }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:focus-visible, .btn:focus-within { outline: 2px solid #93c5fd; outline-offset: 2px; }
 button:disabled { opacity: .5; cursor: default; }
 button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
 button.primary:hover { background: #1d4ed8; }
@@ -76,7 +80,7 @@ button.ghost { background: transparent; }
 button.danger { color: var(--bad); border-color: #fca5a5; }
 button.danger:hover { background: var(--bad-soft); }
 button.small { padding: 3px 8px; font-size: 12px; }
-.btn-sub { font-weight: 400; opacity: .85; font-size: .85em; }
+.btn-sub { font-weight: 400; color: inherit; opacity: .9; font-size: .85em; }
 button.flash { animation: flash 1s ease-in-out 3; }
 @keyframes flash { 50% { box-shadow: 0 0 0 6px #fde68a; } }
 
@@ -125,7 +129,9 @@ label.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; curso
 .tbl td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .tbl tr:hover td { background: #f9fafb; }
 .tbl tr.sel td { background: #eff6ff; }
-.tbl input.money { width: 100px; text-align: right; font-weight: 600; }
+.tbl input.money { width: 100px; text-align: right; font-weight: 600; background: #f8fafc; border-color: #e5e7eb; transition: border-color .15s, background-color .15s; }
+.tbl tr:hover input.money { border-color: #cbd5e1; background: #fff; }
+.tbl input.money:focus { background: #fff; }
 .tbl input.qty { width: 60px; }
 .tbl select { max-width: 170px; }
 .tbl .nm { min-width: 220px; }
@@ -176,11 +182,18 @@ td.col-on, th.col-on { background: #eff6ff; }
 /* ---------- Avisos ---------- */
 #banner .warnbar { background: var(--warn-soft); color: #78350f; padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; border-bottom: 1px solid #fcd34d; }
 #updBar .updbar { background: var(--brand-soft); color: #1e3a8a; padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; border-bottom: 1px solid #93c5fd; }
-#toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; align-items: center; }
-.toast { background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); display: flex; gap: 12px; align-items: center; max-width: 90vw; }
+/* Los avisos van en la "capa de arriba" (popover) para verse también encima de las ventanas de diálogo */
+#toasts { position: fixed; inset: auto auto 16px 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; align-items: center;
+  margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; color: inherit; width: max-content; max-width: 90vw; }
+#toasts:empty { display: none; }
+.toast { background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); display: flex; gap: 12px; align-items: center; max-width: 90vw; animation: toastIn .2s ease-out; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px); } }
 .toast button { background: #374151; color: #fff; border-color: #4b5563; }
 
 dialog { border: 0; border-radius: 14px; padding: 0; max-width: min(760px, 94vw); width: 100%; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+dialog[open] { animation: dlgIn .15s ease-out; }
+@keyframes dlgIn { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 dialog::backdrop { background: rgba(17, 24, 39, .55); }
 .dlg-body { padding: 18px 20px; max-height: 80vh; overflow: auto; }
 .dlg-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--line); background: #f9fafb; flex-wrap: wrap; }
