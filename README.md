@@ -51,6 +51,22 @@ La primera vez Windows puede preguntar si querés ejecutarlo: elegí **Más info
 - **El texto se ajusta solo**: los nombres largos se achican o pasan a dos renglones, y el precio usa todo el espacio que tiene.
 - **Plantilla según categoría**: por ejemplo, todas las GALLETITAS usan la plantilla chica sin tener que elegirla cada vez.
 
+## Usar desde el celular (compu + iPhone en el mismo Wi-Fi)
+
+Para cargar artículos o armar la cola desde el celular y terminar de ajustar e imprimir en la compu (o al revés), con los datos compartidos entre los dos:
+
+1. **La primera vez**, si ya tenés artículos cargados: abrí la app como siempre y en **Ajustes y respaldo** descargá una copia de seguridad.
+2. En la carpeta de la app hacé **doble clic en `COMPARTIR-CON-CELULAR.bat`**. Se abre una ventanita y la app sola en el navegador (`http://localhost:8787`).
+   - La primera vez Windows pide permiso para que el celular pueda conectarse: elegí **Sí**.
+   - Si la red Wi-Fi está como "Pública", la ventanita ofrece cambiarla a "Privada" (solo hacelo en la red de tu casa o negocio).
+3. La primera vez, en esa app tocá **Restaurar una copia…** y elegí la copia del paso 1.
+4. En el iPhone, conectado al **mismo Wi-Fi**, abrí Safari y escribí la dirección que muestra la ventanita (por ejemplo `http://192.168.1.25:8787`). Tip: **Compartir → Agregar a pantalla de inicio** y queda como una app.
+
+Arriba a la derecha dice **● Conectado** cuando todo anda. Lo que cargás en un aparato aparece en el otro en unos segundos.
+La ventanita tiene que quedar abierta en la compu mientras uses el celular (se puede minimizar). Los datos se guardan en la carpeta `datos-compartidos`, con un respaldo automático por día (se guardan los últimos 30).
+
+> En la compu, en modo compartido usá siempre `http://localhost:8787` (no el doble clic en `index.html`): son dos lugares de guardado distintos.
+
 ## Copia de seguridad
 
 En **Ajustes y respaldo → Descargar copia de seguridad**. Hacela una vez por semana (la app te lo recuerda) y guardala en un pendrive o mandátela por mail o WhatsApp. Con **Restaurar** recuperás todo, también en otra computadora.
@@ -62,4 +78,6 @@ En **Ajustes y respaldo → Descargar copia de seguridad**. Hacela una vez por s
 - `js/core.js`: formato de precios, ajuste automático del texto, acomodo en la hoja
 - `js/app.js`: pantallas (carga rápida, catálogo, importador, plantillas, ajustes)
 - `js/db.js`: base de datos local (IndexedDB)
+- `COMPARTIR-CON-CELULAR.bat` + `tools/servidor.ps1`: servidor para usar la app desde el celular en la misma red
+- `js/sync.js`: reparte los cambios entre los aparatos en modo compartido
 - `lib/xlsx.full.min.js`: lector de Excel (SheetJS 0.18.5), incluido para que funcione sin internet

@@ -19,6 +19,7 @@
       <button data-tab="plantillas">Plantillas</button>
       <button data-tab="ajustes">Ajustes y respaldo</button>
     </nav>
+    <span id="syncState" class="syncpill" hidden></span>
   </header>
   <div id="banner"></div>
   <div id="updBar"></div>
@@ -150,6 +151,10 @@
     <!-- ================= AJUSTES ================= -->
     <section class="tab" id="tab-ajustes">
       <div class="card">
+        <h2>Usar desde el celular</h2>
+        <div id="aShare"></div>
+      </div>
+      <div class="card">
         <h2>Actualizar la app</h2>
         <p class="hint">Cuando haya cambios nuevos, en la carpeta de la app hacé doble clic en <b>ACTUALIZAR.bat</b> (en Mac: <b>ACTUALIZAR-mac.command</b>) y después apretá <b>F5</b> acá.
           Baja la última versión sola. <b>Tus artículos, plantillas y ajustes no se tocan.</b> Si hay una versión nueva, la app te avisa arriba.</p>
@@ -226,6 +231,7 @@
 <script src="lib/xlsx.full.min.js"></script>
 <script src="js/version.js"></script>
 <script src="js/db.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/core.js"></script>
 <script src="js/app.js"></script>
 </body>

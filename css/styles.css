@@ -48,6 +48,14 @@ small, .hint { color: var(--muted); }
   font-size: 12px; font-weight: 600; text-align: center; line-height: 20px;
 }
 .tabs button.active .pill { background: var(--brand); color: #fff; }
+.syncpill { margin-left: auto; font-size: 12px; padding: 3px 10px; border-radius: 99px; background: #1f2937; color: #d1d5db; white-space: nowrap; cursor: default; }
+.syncpill.ok { color: #6ee7b7; }
+.syncpill.saving { color: #fcd34d; }
+.syncpill.offline { color: #fca5a5; }
+.steps { padding-left: 20px; margin: 6px 0 12px; }
+.steps li { margin-bottom: 4px; }
+.share-urls { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 4px; }
+.share-urls b { font-size: 18px; color: var(--ink); user-select: all; }
 
 main { padding: 16px; max-width: 1500px; margin: 0 auto; }
 .tab { display: none; }

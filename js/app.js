@@ -238,6 +238,15 @@ function sheetEstimate() {
 function renderBanner() {
   const st = S.settings;
   const now = Date.now();
+  if (Sync.on && !S.products.length && !st.sharedStart) {
+    $('#banner').innerHTML = `<div class="warnbar">Modo compartido: todavía no hay artículos. ¿Ya los tenías cargados en la compu? Abrí la app como antes (doble clic en <b>index.html</b>),
+      en <b>Ajustes y respaldo</b> descargá una copia de seguridad y restaurala acá.
+      <label class="btn">Restaurar una copia… <input type="file" id="bnRestore" accept=".json" hidden></label>
+      <button class="small ghost" id="bnFresh">Empiezo de cero</button></div>`;
+    $('#bnRestore').onchange = (e) => $('#aRestore').onchange(e);
+    $('#bnFresh').onclick = () => { st.sharedStart = 1; saveSettings(); renderBanner(); };
+    return;
+  }
   const need = S.products.length > 0 && now - (st.lastBackup || 0) > 7 * DAY && now > (st.snoozeBackup || 0);
   if (!need) { $('#banner').innerHTML = ''; return; }
   const days = st.lastBackup ? Math.floor((now - st.lastBackup) / DAY) : null;
@@ -580,6 +589,7 @@ function closeSheets() {
   $('#sheets').innerHTML = '';
   document.body.style.overflow = '';
   showTab(S.tab);
+  Sync.check();
 }
 /* Plantillas que usa la cola, con la cantidad de carteles de cada una */
 function queueTemplates() {
@@ -1721,6 +1731,7 @@ function renderSettings() {
     if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
   });
   renderUpdate();
+  renderShare();
   $('#aLast').innerHTML = st.lastBackup ? `Última copia descargada: <b>${new Date(st.lastBackup).toLocaleString('es-AR')}</b>` : 'Todavía no descargaste ninguna copia.';
 }
 function bindSettings() {
@@ -1793,6 +1804,71 @@ function exportExcel() {
 }
 
 /* =====================================================================
+   COMPU + CELULAR (modo compartido, ver js/sync.js)
+   ===================================================================== */
+async function renderShare() {
+  const box = $('#aShare');
+  if (!Sync.on) {
+    box.innerHTML = `<p class="hint" style="margin-top:0">Ahora la app está abierta <b>solo en este navegador</b>. Para cargar artículos desde el celular y terminar acá (o al revés):</p>
+      <ol class="hint steps">
+        <li>Si ya tenés artículos cargados, primero <b>descargá una copia de seguridad</b> (botón de abajo).</li>
+        <li>En la carpeta de la app hacé doble clic en <b>COMPARTIR-CON-CELULAR.bat</b>. Se abre la app sola en esta compu y la ventanita te muestra la dirección para el celular.</li>
+        <li>La primera vez, en esa app nueva tocá <b>Restaurar una copia…</b> y elegí la copia que descargaste.</li>
+        <li>En el iPhone, conectado al <b>mismo Wi-Fi</b>, abrí Safari y escribí la dirección que muestra la ventanita (por ejemplo <b>http://192.168.0.10:8787</b>).</li>
+      </ol>
+      <div class="row"><button id="shBackup" class="primary">Descargar copia para pasarla</button></div>`;
+    $('#shBackup').onclick = downloadBackup;
+    return;
+  }
+  box.innerHTML = `<p class="hint" style="margin-top:0"><b style="color:var(--ok)">✓ Modo compartido prendido.</b> Lo que cargues acá o en el celular se guarda en la compu y aparece en el otro aparato en unos segundos.</p>
+    <div id="shUrls" class="hint">Buscando la dirección…</div>
+    <p class="hint">En la compu tiene que quedar abierta la ventanita de <b>COMPARTIR-CON-CELULAR</b> (se puede minimizar). Si la cerrás, el celular deja de conectarse.<br>
+      Tip para el iPhone: en Safari tocá <b>Compartir → Agregar a pantalla de inicio</b> y queda como una app.<br>
+      Los datos quedan en la carpeta <b>datos-compartidos</b> de la compu, con un respaldo automático por día.</p>`;
+  try {
+    const i = await Sync.info();
+    const urls = (i.ips || []).map((ip) => `http://${ip}:${i.port}`);
+    $('#shUrls').innerHTML = urls.length
+      ? `En el celular (mismo Wi-Fi), abrí Safari y escribí:<div class="share-urls">${urls.map((u) => `<b class="mono">${U.esc(u)}</b>`).join('')}</div>`
+      : 'No encontré la dirección de la compu en la red. ¿Está conectada al Wi-Fi?';
+  } catch (e) {
+    $('#shUrls').textContent = 'No hay conexión con la compu ahora mismo. Revisá que la ventanita de COMPARTIR siga abierta.';
+  }
+}
+/* Llegaron cambios del otro aparato: recargo los datos sin mover lo que se está haciendo */
+let lastRemoteToast = 0;
+async function applyRemote() {
+  const y = window.scrollY;
+  await loadState();
+  FIT_CACHE.clear();
+  if (S.tab === 'imprimir') { $('#qTpl').innerHTML = tplOptions($('#qTpl').value, 'Plantilla automática'); renderQueue(); }
+  else showTab(S.tab);
+  window.scrollTo(0, y);
+  if (Date.now() - lastRemoteToast > 30000) { lastRemoteToast = Date.now(); toast('↻ Llegaron cambios del otro aparato'); }
+}
+/* No recargar mientras hay un diálogo, la vista de hoja o un campo a medio editar */
+function canApplyRemote() {
+  if ($('#dlg').open || !$('#printView').hidden) return false;
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'file' && !a.closest('.entry-row') && a.id !== 'cSearch') return false;
+  return true;
+}
+function renderSyncState(s) {
+  const el = $('#syncState');
+  if (!el) return;
+  const t = {
+    ok: ['● Conectado', 'Compu y celular comparten los datos'],
+    saving: ['● Guardando…', 'Mandando los cambios a la compu'],
+    offline: ['● Sin conexión', 'No hay conexión con la compu. Lo que cargues queda acá y se manda solo cuando vuelva.'],
+  }[s];
+  el.hidden = !t;
+  if (!t) return;
+  el.className = 'syncpill ' + s;
+  el.textContent = t[0];
+  el.title = t[1];
+}
+
+/* =====================================================================
    INICIO
    ===================================================================== */
 async function loadState() {
@@ -1819,7 +1895,9 @@ async function init() {
     return;
   }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  await Sync.start({ onRemote: applyRemote, canApply: canApplyRemote, onState: renderSyncState });
   await loadState();
+  $('#dlg').addEventListener('close', () => Sync.check());
   $('#tabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); };
   bindImprimir();
   bindPrintView();
