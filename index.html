@@ -29,15 +29,22 @@
     <section class="tab active" id="tab-imprimir">
       <div class="grid2">
         <div>
+          <button id="btnScan" class="scan-cta" type="button">
+            <span class="scan-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>
+            </span>
+            <span><b>Imprimir rápido con la cámara</b><small>Escaneá el código de barras del producto y mandalo a la cola</small></span>
+          </button>
           <div class="card">
             <h2>Carga rápida</h2>
-            <p class="hint">Escribí el <b>nombre o código</b> (o escaneá el código de barras) → <b>Enter</b> → precio → <b>Enter</b>. Listo, ya está en la cola.
-              Si el artículo no existe, se crea solo en el catálogo. También podés <b>pegar una lista</b> (una línea por artículo: <i>Galletitas Oreo 118g 1250</i>).</p>
+            <p class="hint">Escribí el <b>nombre</b> y, si querés, el <b>código de barras</b> (escaneado o a mano) → precio → <b>Enter</b>. Listo, ya está en la cola.
+              Si escaneás un código que ya está cargado, se completa solo el nombre. Si el artículo no existe, se crea en el catálogo con su nombre y código de barras. También podés <b>pegar una lista</b> (una línea por artículo: <i>Galletitas Oreo 118g 1250</i>).</p>
             <div class="entry-row">
               <div class="ac-wrap">
-                <input id="qName" placeholder="Nombre, código o escanear…" autocomplete="off" spellcheck="false">
+                <input id="qName" placeholder="Nombre del artículo (o buscar)…" autocomplete="off" spellcheck="false">
                 <div id="qAc" class="ac" hidden></div>
               </div>
+              <input id="qBar" placeholder="Código de barras (opcional)" inputmode="numeric" autocomplete="off" spellcheck="false" title="Escaneá o escribí el código de barras. Es opcional: sirve para encontrar el artículo escaneando.">
               <input id="qPrice" placeholder="Precio" inputmode="decimal" autocomplete="off">
               <input id="qOffer" placeholder="Oferta" inputmode="decimal" autocomplete="off" title="Precio de oferta (opcional). Sale el precio normal tachado.">
               <input id="qQty" type="number" min="1" value="1" title="Cantidad de carteles">
@@ -225,6 +232,58 @@
   </div>
 </div>
 
+<!-- ================= ESCANEAR CON LA CÁMARA ================= -->
+<div id="scanView" hidden>
+  <div class="sc-bar">
+    <b>Escanear con la cámara</b>
+    <span id="scCount" class="sc-count"></span>
+    <button id="scClose" class="ghost" type="button">Terminar</button>
+  </div>
+  <input type="file" id="scFile" accept="image/*" capture="environment" class="sc-file">
+  <div class="sc-body">
+    <div id="sc-idle" class="sc-panel">
+      <p id="scIdleMsg" class="sc-msg">Tocá el botón, apuntá al <b>código de barras</b> del producto y sacá la foto bien de cerca.</p>
+      <button id="scShoot" class="primary sc-big" type="button">📷 Abrir cámara</button>
+    </div>
+    <div id="sc-live" class="sc-panel" hidden>
+      <div class="sc-video"><video id="scVideo" playsinline muted></video><div class="sc-frame"></div></div>
+      <p class="sc-msg">Apuntá al código de barras dentro del recuadro.</p>
+    </div>
+    <div id="sc-reading" class="sc-panel" hidden>
+      <div class="sc-spin"></div>
+      <p class="sc-msg">Leyendo el código…</p>
+    </div>
+    <div id="sc-found" class="sc-panel" hidden>
+      <div id="scPrev" class="preview sc-prev"></div>
+      <div class="sc-info">
+        <div id="scName" class="sc-name"></div>
+        <div id="scPrice" class="sc-price"></div>
+        <div class="sc-code">Código de barras: <span id="scBar" class="mono"></span></div>
+        <div id="scInQ" class="sc-inq" hidden>Este artículo ya está en la cola</div>
+      </div>
+      <div class="sc-actions">
+        <button id="scNo" class="danger sc-big" type="button">✕ Rechazar</button>
+        <button id="scOk" class="ok sc-big" type="button">✓ Confirmar</button>
+      </div>
+    </div>
+    <div id="sc-missing" class="sc-panel" hidden>
+      <p class="sc-msg">El código <b id="scMissCode" class="mono"></b> no está en el catálogo.</p>
+      <div class="sc-actions">
+        <button id="scMissAdd" type="button" class="sc-big">Cargarlo como nuevo</button>
+        <button id="scMissNext" class="primary sc-big" type="button">Escanear otro</button>
+      </div>
+    </div>
+    <div id="sc-fail" class="sc-panel" hidden>
+      <p class="sc-msg">No pude leer el código en la foto. Probá <b>más cerca</b>, con <b>buena luz</b> y con el código derecho.</p>
+      <button id="scRetry" class="primary sc-big" type="button">📷 Sacar otra foto</button>
+    </div>
+    <div class="sc-manual">
+      <input id="scManual" placeholder="…o escribí los números del código" inputmode="numeric" autocomplete="off">
+      <button id="scManualGo" type="button">Buscar</button>
+    </div>
+  </div>
+</div>
+
 <dialog id="dlg"></dialog>
 <div id="toasts" popover="manual"></div>
 
@@ -234,5 +293,7 @@
 <script src="js/sync.js"></script>
 <script src="js/core.js"></script>
 <script src="js/app.js"></script>
+<script src="lib/zxing.min.js"></script>
+<script src="js/scanner.js"></script>
 </body>
 </html>

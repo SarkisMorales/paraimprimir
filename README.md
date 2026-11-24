@@ -33,8 +33,25 @@ La primera vez Windows puede preguntar si querés ejecutarlo: elegí **Más info
 - Escribí parte del nombre o el código (o escaneá el código de barras), **Enter**, precio, **Enter**. Ya está en la cola.
 - **Enter elige la primera sugerencia** (la que está marcada). Con las flechas ↑ ↓ elegís otra.
 - Si el artículo no existe, se crea solo en el catálogo. Si querés crear uno nuevo aunque haya parecidos, elegí la última opción: **➕ Crear "…" como artículo nuevo**.
+- Hay dos campos juntos: **Nombre** y **Código de barras (opcional)**. Podés completar los dos: el artículo se guarda con su nombre y su código, y después lo encontrás escribiendo el nombre o escaneando.
+- Si escaneás en *Código de barras* un código que ya está cargado, se completa solo el nombre.
+- Si escaneás un código que no está, queda puesto y escribís el nombre del artículo nuevo.
+- Si elegís un artículo que ya existe y le ponés un código de barras, se le guarda.
 - Podés **pegar una lista** entera, una línea por artículo: `Galletitas Oreo 118 g 1250`.
 - Campo **Oferta**: el cartel sale con la franja "OFERTA" y el precio anterior tachado.
+
+## Imprimir rápido con la cámara (celular)
+
+Arriba en la pestaña **Imprimir**, el botón azul **Imprimir rápido con la cámara**:
+
+1. Se abre la cámara: sacale una foto **de cerca** al código de barras del producto (en el iPhone, después tocá **Usar foto**).
+2. La app reconoce el artículo y muestra el **cartel**, el **nombre**, el **precio** y el **código de barras**.
+3. **✓ Confirmar** lo manda a la cola de impresión; **✕ Rechazar** lo descarta. En los dos casos se vuelve a abrir la cámara para el siguiente.
+4. Cuando terminás, **Terminar**. En la compu ya tenés todo en la cola para imprimir.
+
+- Si el código no está en el catálogo, te ofrece **cargarlo como nuevo**.
+- Si no se puede leer la foto, sacá otra con más luz y más cerca, o escribí los números a mano abajo.
+- En el celular conectado por Wi-Fi se usa una foto por producto (el navegador no deja usar la cámara en vivo en direcciones `http://192.168…`). En la compu (`localhost`) usa la cámara en vivo.
 
 ## Catálogo
 
@@ -81,3 +98,4 @@ En **Ajustes y respaldo → Descargar copia de seguridad**. Hacela una vez por s
 - `COMPARTIR-CON-CELULAR.bat` + `tools/servidor.ps1`: servidor para usar la app desde el celular en la misma red
 - `js/sync.js`: reparte los cambios entre los aparatos en modo compartido
 - `lib/xlsx.full.min.js`: lector de Excel (SheetJS 0.18.5), incluido para que funcione sin internet
+- `js/scanner.js` + `lib/zxing.min.js`: escanear códigos de barras con la cámara (ZXing 0.21.3, sin internet)

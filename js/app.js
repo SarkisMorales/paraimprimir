@@ -24,11 +24,15 @@ const saveTemplatesNow = () => DB.kvSet('templates', S.templates);
 const saveTemplates = U.debounce(saveTemplatesNow, 300);
 
 /* ---------------- Artículos ---------------- */
+const splitCodes = (s) => String(s ?? '').split(/[\s,;/|]+/).map(U.normCode).filter(Boolean);
 function indexProduct(p) {
   p._n = U.norm(p.name);
-  p._c = U.normCode(p.code);
-  p._b = U.normCode(p.barcode);
-  p._h = [p._n, p._c, p._b, U.norm(p.category)].join(' ');
+  // Un artículo puede tener varios códigos (ej. el mismo producto en distintos aromas): separados por espacio o coma
+  p._cs = splitCodes(p.code);
+  p._bs = splitCodes(p.barcode);
+  p._c = p._cs[0] || '';
+  p._b = p._bs[0] || '';
+  p._h = [p._n, ...p._cs, ...p._bs, U.norm(p.category)].join(' ');
 }
 function newProduct(o) {
   const now = Date.now();
@@ -107,8 +111,14 @@ function refreshView() {
 function findByCode(q) {
   const c = U.normCode(q);
   if (!c) return null;
-  return S.products.find((p) => p._c === c) || S.products.find((p) => p._b === c) || null;
+  return S.products.find((p) => p._cs.includes(c)) || S.products.find((p) => p._bs.includes(c)) || null;
 }
+function findByBarcode(q) {
+  const c = U.normCode(q);
+  return c ? S.products.find((p) => p._bs.includes(c)) || null : null;
+}
+// Lo que se escanea o se tipea como número largo es un código de barras, no un nombre
+const looksLikeBarcode = (s) => /^\d{7,14}$/.test(String(s ?? '').replace(/\s+/g, ''));
 function findByName(q) {
   const n = U.norm(q);
   return n ? S.products.find((p) => p._n === n) || null : null;
@@ -140,7 +150,7 @@ function searchProducts(q, opts = {}) {
     out.push(p);
   }
   if (toks.length) {
-    const score = (p) => (p._c === cq || p._b === cq ? 0 : p._n.startsWith(toks[0]) ? 1 : p._n.includes(' ' + toks[0]) ? 2 : 3);
+    const score = (p) => (p._cs.includes(cq) || p._bs.includes(cq) ? 0 : p._n.startsWith(toks[0]) ? 1 : p._n.includes(' ' + toks[0]) ? 2 : 3);
     for (const p of out) p._s = score(p);
     out.sort((a, b) => a._s - b._s || COLL.compare(a.name, b.name));
   } else {
@@ -285,12 +295,18 @@ function renderAc() {
   Q.ac = searchProducts(v).slice(0, 8);
   Q.acIdx = Q.ac.length ? 0 : -1;
   if (!Q.ac.length) {
-    box.innerHTML = `<div class="ac-new" style="cursor:default"><span>No está en el catálogo: se crea como <b>artículo nuevo</b>. Poné el precio y Enter.</span></div>`;
+    box.innerHTML = looksLikeBarcode(v)
+      ? `<div class="ac-new" style="cursor:default"><span>Ese código no está en el catálogo. <b>Enter</b> lo pasa al campo <b>Código de barras</b> y escribís el nombre.</span></div>`
+      : `<div class="ac-new" style="cursor:default"><span>No está en el catálogo: se crea como <b>artículo nuevo</b>. Completá el código de barras (opcional) y el precio.</span></div>`;
     box.hidden = false;
     return;
   }
   const inQ = new Set(S.queue.map((q) => q.pid));
-  box.innerHTML = Q.ac.map((p, i) => `<div data-i="${i}"${i === Q.acIdx ? ' class="on"' : ''}><span><b>${U.esc(p.name)}</b> ${p.code ? `<small class="mono">${U.esc(p.code)}</small>` : ''}${inQ.has(p.id) ? ' <small class="ac-inq">en la cola</small>' : ''}</span><span class="pr">${U.esc(U.fmt(p.price, S.settings))}</span></div>`).join('')
+  const cq = U.normCode(v);
+  box.innerHTML = Q.ac.map((p, i) => {
+    const cd = p._bs.includes(cq) ? v : p.code; // si se buscó por código de barras, se muestra ese
+    return `<div data-i="${i}"${i === Q.acIdx ? ' class="on"' : ''}><span><b>${U.esc(p.name)}</b> ${cd ? `<small class="mono">${U.esc(cd)}</small>` : ''}${inQ.has(p.id) ? ' <small class="ac-inq">en la cola</small>' : ''}</span><span class="pr">${U.esc(U.fmt(p.price, S.settings))}</span></div>`;
+  }).join('')
     + `<div data-i="${Q.ac.length}" class="ac-new"><span>➕ Crear <b>“${U.esc(v)}”</b> como artículo nuevo</span></div>`
     + `<p class="ac-tip">↑ ↓ para elegir · <b>Enter</b> confirma · Esc cierra</p>`;
   box.hidden = false;
@@ -307,12 +323,13 @@ function moveAc(d) {
 function chooseNew() {
   Q.sel = null;
   $('#qAc').hidden = true;
-  $('#qInfo').innerHTML = `Artículo <b>nuevo</b>: se agrega al catálogo cuando pongas el precio y apretes Enter.`;
-  $('#qPrice').focus();
+  $('#qInfo').innerHTML = `Artículo <b>nuevo</b>: si tiene <b>código de barras</b>, escanealo (es opcional). Después el precio y Enter.`;
+  if ($('#qBar').value.trim()) $('#qPrice').focus(); else $('#qBar').focus();
 }
 function pickProduct(p) {
   Q.sel = p;
   $('#qName').value = p.name;
+  if (p.barcode) $('#qBar').value = p.barcode; // si no tiene, se deja lo escaneado para agregárselo
   $('#qPrice').value = U.num(p.price);
   $('#qOffer').value = U.num(p.offer);
   $('#qAc').hidden = true;
@@ -329,6 +346,8 @@ function renderPriceHint() {
   const st = S.settings;
   const t = tplFor(p);
   let h = `Del catálogo${p.code ? ' · código <b>' + U.esc(p.code) + '</b>' : ''}${p.category ? ' · ' + U.esc(p.category) : ''} · plantilla <b>${U.esc(t.name)}</b> · precio actual <b>${U.esc(U.fmt(p.price, st))}</b>`;
+  const bar = $('#qBar').value.trim();
+  if (bar && bar !== p.barcode) h += ` · <b>se le guarda el código de barras ${U.esc(bar)}</b>`;
   const v = U.parsePrice($('#qPrice').value);
   if (v > 0 && v !== p.price) {
     const jump = bigJump(p.price, v);
@@ -343,12 +362,25 @@ function renderPriceHint() {
 function resetEntry() {
   Q.sel = null;
   $('#qName').value = '';
+  $('#qBar').value = '';
   $('#qPrice').value = '';
   $('#qOffer').value = '';
   $('#qQty').value = 1;
   $('#qInfo').textContent = '';
   $('#qAc').hidden = true;
   $('#qName').focus();
+}
+// Se escaneó en el campo Nombre un código que no está en el catálogo: pasa al campo Código de barras
+function moveCodeToBar(code) {
+  $('#qBar').value = code;
+  $('#qName').value = '';
+  $('#qAc').hidden = true;
+  $('#qInfo').innerHTML = `El código <b>${U.esc(code)}</b> no está en el catálogo. Escribí el <b>nombre</b> del artículo nuevo.`;
+  $('#qName').focus();
+}
+function barcodeTaken(bar, self) {
+  const other = bar && findByBarcode(bar);
+  return other && other !== self ? other : null;
 }
 function addToQueue(items, merge = true) {
   let added = 0;
@@ -372,18 +404,24 @@ async function commitEntry() {
   const offer = offerRaw ? U.parsePrice(offerRaw) : null;
   const tpl = $('#qTpl').value;
   const qty = Math.max(1, parseInt($('#qQty').value, 10) || 1);
+  const barcode = $('#qBar').value.trim();
   let isNew = false;
+  if (!p && looksLikeBarcode(name) && !barcode) return moveCodeToBar(name.replace(/\s+/g, ''));
+  if (!p && looksLikeBarcode(name)) { toast('Escribí el nombre del artículo'); $('#qName').focus(); return; }
   if (!p && !(price > 0)) { toast('Falta el precio'); $('#qPrice').focus(); return; }
   const ref = price > 0 ? price : p ? p.price : 0;
   if (badOffer(offer, ref)) { toast(offerMsg(offer, ref)); $('#qOffer').focus(); $('#qOffer').select(); return; }
   if (p && price > 0 && !(await confirmJump(p, price))) { $('#qPrice').focus(); $('#qPrice').select(); return; }
+  const taken = barcodeTaken(barcode, p);
+  if (taken) { toast(`El código de barras ${U.esc(barcode)} ya es de “${U.esc(taken.name)}”`); $('#qBar').focus(); $('#qBar').select(); return; }
   resetEntry(); // limpiar ya, así se puede seguir escribiendo o escaneando sin esperar
   if (!p) {
-    p = newProduct({ name, price, offer: offer > 0 ? offer : null, tpl });
+    p = newProduct({ name, barcode, price, offer: offer > 0 ? offer : null, tpl });
     isNew = true;
     await saveProducts([p]);
   } else {
     let ch = false;
+    if (barcode && barcode !== p.barcode) { p.barcode = barcode; ch = true; }
     if (price > 0 && price !== p.price) ch = setPrice(p, price) || ch;
     const off = offer > 0 ? offer : null;
     if ((p.offer ?? null) !== off) { p.offer = off; ch = true; }
@@ -392,7 +430,7 @@ async function commitEntry() {
   addToQueue([{ pid: p.id, qty, tpl: isNew ? '' : tpl }]);
   Q.previewId = p.id;
   renderQueue();
-  if (isNew) toast(`Nuevo en el catálogo: “${U.esc(name)}”`);
+  if (isNew) toast(`Nuevo en el catálogo: “${U.esc(name)}”${barcode ? ` · código de barras ${U.esc(barcode)}` : ''}`);
 }
 
 /* Pegar una lista: "Nombre precio" por línea, o columnas copiadas de Excel */
@@ -464,7 +502,14 @@ function renderQPreview() {
 
 function bindImprimir() {
   const qn = $('#qName');
-  qn.addEventListener('input', () => { if (Q.sel && qn.value !== Q.sel.name) { Q.sel = null; $('#qInfo').textContent = ''; } renderAc(); });
+  qn.addEventListener('input', () => {
+    if (Q.sel && qn.value !== Q.sel.name) {
+      if (Q.sel.barcode && $('#qBar').value.trim() === Q.sel.barcode) $('#qBar').value = ''; // era el código de ese artículo
+      Q.sel = null;
+      $('#qInfo').textContent = '';
+    }
+    renderAc();
+  });
   qn.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); moveAc(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); moveAc(-1); }
@@ -476,12 +521,31 @@ function bindImprimir() {
       // Código exacto (lector de barras) o nombre exacto: va directo
       const exact = Q.sel || findByCode(v) || findByName(v);
       if (exact) return pickProduct(exact);
+      // Un código de barras que no está: pasa al campo Código de barras y se escribe el nombre
+      if (looksLikeBarcode(v) && !$('#qBar').value.trim()) return moveCodeToBar(v.replace(/\s+/g, ''));
       // Si no, la sugerencia marcada (la primera, salvo que elijas otra con las flechas)
       if (!$('#qAc').hidden && Q.acIdx >= 0 && Q.ac[Q.acIdx]) return pickProduct(Q.ac[Q.acIdx]);
       chooseNew();
     }
   });
   qn.addEventListener('focus', () => { if (!Q.sel && qn.value.trim()) renderAc(); });
+  const qb = $('#qBar');
+  qb.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); resetEntry(); return; }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const v = qb.value.trim();
+    const found = v && findByBarcode(v);
+    // Código ya cargado en otro artículo: se trae ese artículo (completa el nombre solo)
+    if (found && found !== Q.sel) return pickProduct(found);
+    if (!$('#qName').value.trim()) {
+      if (v) $('#qInfo').innerHTML = `El código <b>${U.esc(v)}</b> no está en el catálogo. Escribí el <b>nombre</b> del artículo nuevo.`;
+      $('#qName').focus();
+      return;
+    }
+    $('#qPrice').focus();
+    $('#qPrice').select();
+  });
   qn.addEventListener('blur', () => setTimeout(() => { $('#qAc').hidden = true; }, 150));
   qn.addEventListener('paste', (e) => {
     const text = (e.clipboardData || window.clipboardData).getData('text');
@@ -1158,11 +1222,11 @@ function editProduct(p, base) {
   const d = openDialog(`<div class="dlg-body"><h2>${isNew ? (base ? 'Nuevo artículo (copia)' : 'Nuevo artículo') : 'Editar artículo'}</h2>
     ${base ? '<p class="hint">Cambiá lo que sea distinto (sabor, tamaño, precio) y guardá. El código y el código de barras quedan vacíos.</p>' : ''}
     <div class="fields" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
-      <label class="field" style="grid-column:1/-1">Nombre (como sale en el cartel)<input id="eName" value="${U.esc(d0.name)}" style="font-size:17px"></label>
-      <label class="field">Precio<input id="ePrice" value="${U.num(d0.price)}" inputmode="decimal" style="font-size:17px;font-weight:700"></label>
+      <label class="field" style="grid-column:1/-1">Nombre (como sale en el cartel) *<input id="eName" value="${U.esc(d0.name)}" style="font-size:17px"></label>
+      <label class="field" style="grid-column:1/-1">Código de barras <span class="hint" style="margin:0">(opcional; si tiene varios, separalos con un espacio)</span><input id="eBar" value="${U.esc(d0.barcode)}" class="mono" style="font-size:16px" placeholder="Escaneá o escribí el código…" inputmode="numeric"></label>
+      <label class="field">Precio *<input id="ePrice" value="${U.num(d0.price)}" inputmode="decimal" style="font-size:17px;font-weight:700"></label>
       <label class="field">Precio de oferta<input id="eOffer" value="${U.num(d0.offer)}" inputmode="decimal" placeholder="(sin oferta)"></label>
-      <label class="field">Código<input id="eCode" value="${U.esc(d0.code)}"></label>
-      <label class="field">Código de barras<input id="eBar" value="${U.esc(d0.barcode)}"></label>
+      <label class="field">Código interno<input id="eCode" value="${U.esc(d0.code)}"></label>
       <label class="field">Categoría<input id="eCat" value="${U.esc(d0.category)}" list="eCatList"></label>
       <label class="field">Plantilla<select id="eTpl">${tplOptions(d0.tpl, 'Automática según categoría')}</select></label>
       <label class="field">Contenido neto<input id="eCont" value="${d0.content > 0 ? U.num(d0.content) : ''}" inputmode="decimal" placeholder="auto"></label>
@@ -1206,7 +1270,9 @@ function editProduct(p, base) {
       jumpOk = v.price;
       return toast('Revisá el precio. Si está bien, tocá <b>Guardar</b> otra vez.', { ms: 6000 });
     }
-    if (v.code) { const other = findByCode(v.code); if (other && other !== p && other._c === U.normCode(v.code)) return toast(`El código ${U.esc(v.code)} ya lo usa “${U.esc(other.name)}”`); }
+    if (v.code) { const other = findByCode(v.code); if (other && other !== p && other._cs.includes(U.normCode(v.code))) return toast(`El código ${U.esc(v.code)} ya lo usa “${U.esc(other.name)}”`); }
+    const takenBar = barcodeTaken(v.barcode, p);
+    if (takenBar) { $('#eBar').focus(); return toast(`El código de barras ${U.esc(v.barcode)} ya lo usa “${U.esc(takenBar.name)}”`); }
     let prod = p;
     if (isNew) prod = newProduct(Object.assign({}, v));
     else { const pr = v.price; delete v.price; Object.assign(prod, v); setPrice(prod, pr); }
@@ -1218,7 +1284,14 @@ function editProduct(p, base) {
   };
   $('#eSave').onclick = () => save(false);
   $('#eSaveQ').onclick = () => save(true);
-  d.onkeydown = (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); save(false); } };
+  d.onkeydown = (e) => {
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    e.preventDefault();
+    // El lector de códigos manda Enter al final: en nombre y código de barras, Enter pasa al campo siguiente
+    if (e.target.id === 'eName') { $('#eBar').focus(); return; }
+    if (e.target.id === 'eBar') { const pr = $('#ePrice'); pr.focus(); pr.select(); return; }
+    save(false);
+  };
   if (!isNew) $('#eDup').onclick = () => {
     const v = read();
     editProduct(null, { name: v.name, price: v.price > 0 ? v.price : null, offer: v.offer, category: v.category, tpl: v.tpl, content: v.content, unit: v.unit });
@@ -1469,7 +1542,7 @@ function analyzeImport() {
   for (const p of S.products) {
     const k = IMP.matchBy === 'code' ? p._c : p._n;
     if (k) byKey.set(k, p);
-    if (p._b) byBar.set(p._b, p);
+    for (const b of p._bs) byBar.set(b, p);
     if (p._n) byName.set(p._n, p);
   }
   const seen = new Map();
